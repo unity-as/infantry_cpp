@@ -1,0 +1,46 @@
+/*********************************************************************
+*                 (c) SEGGER Microcontroller GmbH                    *
+*                      The Embedded Experts                          *
+*                         www.segger.com                             *
+**********************************************************************
+File          : D:/project/STM32_project/RobotMaster/infantry_main/debug.jdebug
+Created       : 19 Jun 2026
+Ozone Version : V3.24
+*/
+
+void OnProjectLoad (void) {
+  Project.SetOSPlugin ("FreeRTOSPlugin");
+  Project.AddPathSubstitute ("D:/project/STM32_project/RobotMaster/infantry_main", "$(ProjectDir)");
+  Project.AddPathSubstitute ("d:/project/stm32_project/robotmaster/infantry_main", "$(ProjectDir)");
+  Project.SetDevice ("Cortex-M4");
+  Project.SetHostIF ("USB", "1040849617");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M4F.svd");
+  File.Open ("$(ProjectDir)/build/infantry.elf");
+}
+
+void AfterTargetReset (void) {
+  _SetupTarget();
+}
+
+void AfterTargetDownload (void) {
+  _SetupTarget();
+}
+
+void _SetupTarget(void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+  VectorTableAddr = Elf.GetBaseAddr();
+  SP = Target.ReadU32(VectorTableAddr);
+  if (SP != 0xFFFFFFFF) {
+    Target.SetReg("SP", SP);
+  }
+  PC = Elf.GetEntryPointPC();
+  if (PC != 0xFFFFFFFF) {
+    Target.SetReg("PC", PC);
+  } else {
+    Util.Error("Project script error: failed to set up entry point PC", 1);
+  }
+}

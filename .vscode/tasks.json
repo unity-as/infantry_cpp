@@ -1,0 +1,89 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cmake",
+            "label": "build",
+            "command": "build",
+            "targets": [
+                "all"
+            ],
+            "preset": "__defaultBuildPreset__",
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "build"
+        },
+        {
+            "label":"ST-Flash",
+            "type":"shell",
+            "command":"openocd",
+            "args": [
+                "-f",
+                "interface/stlink.cfg",
+                "-f",
+                "target/stm32f4x.cfg",
+                "-c",
+                "program build/infantry.elf verify reset exit"
+            ],
+            "group":{
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "label": "DAP-Flash",
+            "command":"openocd",
+            "args": [
+                "-f",
+                "interface/cmsis-dap.cfg",
+                "-f",
+                "target/stm32f4x.cfg",
+                "-c",
+                "program build/infantry.elf verify reset exit"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "label": "flash",
+            "command":"openocd",
+            "args": [
+                "-f",
+                "openocd_dap.cfg",
+                "-c",
+                "program build/infantry.elf verify reset exit"
+            ],
+            "group": "build",
+            "dependsOn":"build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher":[]
+        },
+        {
+            "label": "Ozone",
+            "type": "shell",
+            "command": "D:/Screen/Ozone/Ozone.exe",
+            "args": [
+                "${workspaceFolder}/debug.jdebug"
+            ],
+            "group": "build",
+            "dependsOn": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+
+}

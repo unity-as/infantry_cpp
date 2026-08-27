@@ -1,0 +1,81 @@
+一、类相关（Class）
+特性	                                             说明
+virtual / override / final	                         虚函数、显式覆盖、禁止进一步覆盖。用于继承体系。
+抽象类（纯虚函数 = 0）	                               定义接口，无法实例化。
+友元（friend）	                                      允许外部函数或类访问私有成员。
+mutable	允许 const                                   成员函数修改某个成员变量（通常用于缓存或锁）。
+继承访问控制（public/protected/private 继承）  	       控制基类成员在派生类中的可见性。
+构造/析构顺序	                                      基类先构造，派生类后构造；析构顺序相反。
+拷贝构造/拷贝赋值（T(const T&) / operator=(const T&)） 自定义对象拷贝行为。
+移动构造/移动赋值（C++11，T(T&&) / operator=(T&&)）	   转移资源所有权（通常依赖 malloc，你禁用堆时可能不用，但语法存在）。
+= default / = delete	                             显式要求编译器生成默认版本 / 禁止某个操作（如禁止拷贝）。
+explicit	                                         防止单参数构造函数被隐式调用（避免意外的类型转换）。
+
+二、类型与转换
+特性	                                             说明
+static_cast	                                         编译期类型转换（如 int → float，基类指针 → 派生类指针，无运行时检查）。
+reinterpret_cast	                                 低层位模式转换（如 uint32_t* → float*，指针 → 整数），完全信任程序员。
+const_cast	                                         去除或添加 const 限定符。
+dynamic_cast	                                     运行时类型转换（依赖 RTTI），你禁用了 RTTI 所以它不可用，但需要知道它存在。
+decltype	                                         推导表达式的类型，用于模板或 using 别名中。
+auto	                                             自动类型推导（局部变量）。
+尾随返回类型（auto func() -> int）	                  声明返回类型在参数列表之后。
+typeid	                                             运行时获取类型信息（依赖 RTTI，你禁用后不可用）。
+
+三、模板（Template）
+特性	                                             说明
+模板特化（template<>）	                              为特定类型提供单独实现。
+偏特化（Partial Specialization）	                  为部分模板参数提供特化（仅限类模板）。
+可变参数模板（Variadic Templates，typename... Args）   接收任意数量、任意类型的模板参数。
+模板模板参数（template<typename> class Container）	  模板参数本身是模板。
+typename vs class	                                 在模板参数声明中两者基本等价；在依赖类型前必须加 typename（如 typename T::value_type）。
+
+四、存储与生命周期
+特性	                                             说明
+static（类成员）	                                  属于类本身，不属于对象；所有对象共享同一份。
+static（全局/局部）	                                  文件作用域（C 中已有）或函数内持久变量（C 中已有）。
+thread_local（C++11）	                             每个线程独立副本（裸机 RTOS 中可能有用）。
+alignas / alignof	                                 控制/查询内存对齐。
+offsetof（C 标准库宏）	                              结构体成员偏移量（C 已有，C++ 仍可用）。
+
+五、运算符与表达式
+特性	                                             说明
+operator                                             重载（+、-、*、/、[]、()、->、++、--、+= 等）  已提过。
+用户定义字面量（operator""）                      	  自定义后缀（如 100_mm）。
+
+六、属性（Attributes，C++11 起）
+特性	                                             说明
+[[nodiscard]]	                                     返回值不应被忽略，否则编译器警告。
+[[maybe_unused]]	                                 抑制未使用变量/函数的警告。
+[[deprecated]]	                                     标记为已弃用，使用时产生警告。
+[[noreturn]]	                                     函数不会返回（如死循环或 while(1)）。
+[[fallthrough]]	                                     显式标记 switch 中的穿透行为，避免警告。
+
+七、预处理器与编译期
+特性	                                             说明
+#pragma once	                                     非标准但广泛支持的替代头文件守卫。
+__cplusplus 宏	                                     判断是否为 C++ 编译环境，用于 extern "C" 条件编译。
+static_assert	                                     已提过。
+constexpr / consteval（C++20） / constinit（C++20）	 编译期计算（consteval 强制编译期执行，constinit 强制编译期初始化）。
+
+八、其他杂项
+特性	                                             说明
+范围 for 循环（for (auto& x : arr)）	              遍历容器或数组。
+初始化列表（std::initializer_list）	                  支持 {1, 2, 3} 初始化自定义类。
+nullptr	                                             已提过。
+bool 类型	                                         C 已有（C99），C++ 原生支持。
+引用折叠（Reference Collapsing）	                  模板中 T& + && 的推导规则（通常不主动触碰）。
+declval	                                             在未构造对象上推导表达式类型（模板元编程）。
+匿名命名空间（namespace { ... }）	                  替代 C 的 static 文件作用域，效果等价。
+inline 函数	                                         C 已有，C++ 中建议类内定义的小函数隐式内联。
+extern "C"	                                         告诉 C++ 编译器按 C 方式链接函数（用于混合编译）。
+
+九、标准库（裸机可用子集）
+特性	                                             说明
+std::array	                                         编译期固定大小数组，替代 C 数组（你已在用）。
+std::optional	                                     可能有值也可能为空的对象（替代返回 NULL 或错误码）。
+std::pair / std::tuple	                             轻量级聚合，用于返回多个值。
+std::initializer_list	                            支持列表初始化。
+std::is_same、std::enable_if（SFINAE）	             模板元编程，用于编译期条件选择（你不一定用，但存在）。
+std::function	                                     可调用对象包装（可能触发堆分配，裸机慎用，但语法存在）。
+std::reference_wrapper	                             引用包装器，用于容器中存储引用。
