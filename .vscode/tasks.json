@@ -1,89 +1,53 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "type": "cmake",
-            "label": "build",
-            "command": "build",
-            "targets": [
-                "all"
-            ],
-            "preset": "__defaultBuildPreset__",
-            "group": "build",
-            "problemMatcher": [],
-            "detail": "build"
-        },
-        {
-            "label":"ST-Flash",
-            "type":"shell",
-            "command":"openocd",
-            "args": [
-                "-f",
-                "interface/stlink.cfg",
-                "-f",
-                "target/stm32f4x.cfg",
-                "-c",
-                "program build/infantry.elf verify reset exit"
-            ],
-            "group":{
-                "kind": "build",
-                "isDefault": true
-            }
-        },
-        {
-            "type": "shell",
-            "label": "DAP-Flash",
-            "command":"openocd",
-            "args": [
-                "-f",
-                "interface/cmsis-dap.cfg",
-                "-f",
-                "target/stm32f4x.cfg",
-                "-c",
-                "program build/infantry.elf verify reset exit"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
-        },
-        {
-            "type": "shell",
-            "label": "flash",
-            "command":"openocd",
-            "args": [
-                "-f",
-                "openocd_dap.cfg",
-                "-c",
-                "program build/infantry.elf verify reset exit"
-            ],
-            "group": "build",
-            "dependsOn":"build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "problemMatcher":[]
-        },
-        {
-            "label": "Ozone",
-            "type": "shell",
-            "command": "D:/Screen/Ozone/Ozone.exe",
-            "args": [
-                "${workspaceFolder}/debug.jdebug"
-            ],
-            "group": "build",
-            "dependsOn": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared"
-            },
-            "problemMatcher": []
-        }
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "cmake",
+      "label": "build",
+      "command": "build",
+      "targets": ["all"],
+      "preset": "__defaultBuildPreset__",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "build"
+    },
 
+    // ========== 统一烧录任务 ==========
+    {
+      "label": "flash",
+      "type": "shell",
+      "command": "openocd",
+      "args": [
+        "-f", "${config:flash.interface.${config:flash.debugger}}",
+        "-f", "${config:flash.target_cfg}",
+        "-c", "program ${config:flash.build_dir}/${config:flash.firmware_file} verify reset exit"
+      ],
+      "group": "build",
+      "dependsOn": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ========== Ozone 调试 ==========
+    {
+      "label": "Ozone",
+      "type": "shell",
+      "command": "D:/Screen/Ozone/Ozone.exe",
+      "args": ["${workspaceFolder}/debug.jdebug"],
+      "group": "build",
+      "dependsOn": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
 }
