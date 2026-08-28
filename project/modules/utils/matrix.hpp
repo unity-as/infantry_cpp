@@ -22,7 +22,7 @@
  *              添加 static_assert 编译期维度检查，增强类型安全；
  *              全局适配 CMSIS-DSP 规范，提升 SIMD 执行效率；
  *              删除矩阵乘法多余的友元，并加入了const；
- *              更详细的注释。
+ *              更详细的注释；
  *              一些细节改动以提高代码清晰度和维护性。
  *
  ******************************************************************************
@@ -45,7 +45,7 @@ class Matrixf
      */
     Matrixf(void){ 
         static_assert(_rows > 0 && _cols > 0, "Matrix dimensions must be positive.");
-        arm_mat_init_f32(&arm_mat_, _rows, _cols, this->data_); 
+        arm_mat_init_f32(&arm_mat_, _rows, _cols, data_); 
     }
 
     /**
@@ -53,7 +53,7 @@ class Matrixf
      * @param data 长度为 _rows*_cols 的 float 数组
      */
     Matrixf(float data[_rows * _cols]) : Matrixf() {
-        memcpy(this->data_, data, sizeof(float) * _rows * _cols);
+        memcpy(data_, data, sizeof(float) * _rows * _cols);
     }
 
     /**
@@ -61,7 +61,7 @@ class Matrixf
      * @param mat 同类型的矩阵
      */
     Matrixf(const Matrixf<_rows, _cols> &mat) : Matrixf() {
-        memcpy(this->data_, mat.data_, _rows * _cols * sizeof(float));
+        memcpy(data_, mat.data_, _rows * _cols * sizeof(float));
     }
 
     /**
@@ -78,8 +78,8 @@ class Matrixf
      * @brief 重载下标运算符，返回第 row 行的指针（行主序）
      * @param row 行索引（从 0 开始）
      */
-    float *operator[](const int &row) { return &this->data_[row * _cols]; }
-    const float* operator[](const int &row) const { return &this->data_[row * _cols]; }
+    float *operator[](const int &row) { return &data_[row * _cols]; }
+    const float* operator[](const int &row) const { return &data_[row * _cols]; }
 
     // ---------- 赋值运算符 ----------
     /**
@@ -87,7 +87,7 @@ class Matrixf
      * @param mat 右侧矩阵
      */
     Matrixf<_rows, _cols> &operator=(const Matrixf<_rows, _cols>& mat) {
-        memcpy(this->data_, mat.data_, _rows * _cols * sizeof(float));
+        memcpy(data_, mat.data_, _rows * _cols * sizeof(float));
         return *this;
     }
 
@@ -98,7 +98,7 @@ class Matrixf
      * @warning 输入和输出指针相同，CMSIS 标准实现支持原地操作，但某些编译优化可能产生别名问题，建议谨慎。
      */
     Matrixf<_rows, _cols> &operator+=(const Matrixf<_rows, _cols>& mat) {
-        arm_mat_add_f32(&this->arm_mat_, &mat.arm_mat_, &this->arm_mat_);
+        arm_mat_add_f32(&arm_mat_, &mat.arm_mat_, &arm_mat_);
         return *this;
     }
 
@@ -106,7 +106,7 @@ class Matrixf
      * @brief 矩阵减法（自身 -= 其他矩阵）
      */
     Matrixf<_rows, _cols> &operator-=(const Matrixf<_rows, _cols>& mat) {
-        arm_mat_sub_f32(&this->arm_mat_, &mat.arm_mat_, &this->arm_mat_);
+        arm_mat_sub_f32(&arm_mat_, &mat.arm_mat_, &arm_mat_);
         return *this;
     }
 
@@ -114,7 +114,7 @@ class Matrixf
      * @brief 标量乘法（自身 *= 标量）
      */
     Matrixf<_rows, _cols> &operator*=(const float &val) {
-        arm_mat_scale_f32(&this->arm_mat_, val, &this->arm_mat_);
+        arm_mat_scale_f32(&arm_mat_, val, &arm_mat_);
         return *this;
     }
 
@@ -122,7 +122,7 @@ class Matrixf
      * @brief 标量除法（自身 /= 标量）
      */
     Matrixf<_rows, _cols> &operator/=(const float &val) {
-        arm_mat_scale_f32(&this->arm_mat_, 1.f / val, &this->arm_mat_);
+        arm_mat_scale_f32(&arm_mat_, 1.f / val, &arm_mat_);
         return *this;
     }
 
@@ -132,7 +132,7 @@ class Matrixf
      */
     Matrixf<_rows, _cols> operator+(const Matrixf<_rows, _cols> &mat) const {
         Matrixf<_rows, _cols> res;
-        arm_mat_add_f32(&this->arm_mat_, &mat.arm_mat_, &res.arm_mat_);
+        arm_mat_add_f32(&arm_mat_, &mat.arm_mat_, &res.arm_mat_);
         return res;
     }
 
@@ -141,7 +141,7 @@ class Matrixf
      */
     Matrixf<_rows, _cols> operator-(const Matrixf<_rows, _cols> &mat) const {
         Matrixf<_rows, _cols> res;
-        arm_mat_sub_f32(&this->arm_mat_, &mat.arm_mat_, &res.arm_mat_);
+        arm_mat_sub_f32(&arm_mat_, &mat.arm_mat_, &res.arm_mat_);
         return res;
     }
 
@@ -150,7 +150,7 @@ class Matrixf
      */
     Matrixf<_rows, _cols> operator*(const float &val) const {
         Matrixf<_rows, _cols> res;
-        arm_mat_scale_f32(&this->arm_mat_, val, &res.arm_mat_);
+        arm_mat_scale_f32(&arm_mat_, val, &res.arm_mat_);
         return res;
     }
 
@@ -169,7 +169,7 @@ class Matrixf
      */
     Matrixf<_rows, _cols> operator/(const float &val) const {
         Matrixf<_rows, _cols> res;
-        arm_mat_scale_f32(&this->arm_mat_, 1.f / val, &res.arm_mat_);
+        arm_mat_scale_f32(&arm_mat_, 1.f / val, &res.arm_mat_);
         return res;
     }
 
@@ -181,7 +181,7 @@ class Matrixf
     template <int cols2>
     Matrixf<_rows, cols2> operator*(const Matrixf<_cols, cols2> &mat2) const {
         Matrixf<_rows, cols2> res;
-        arm_mat_mult_f32(&this->arm_mat_, &mat2.arm_mat_, &res.arm_mat_);
+        arm_mat_mult_f32(&arm_mat_, &mat2.arm_mat_, &res.arm_mat_);
         return res;
     }
 
@@ -191,7 +191,7 @@ class Matrixf
      */
     bool operator==(const Matrixf<_rows, _cols> &mat) const {
         for (uint32_t i = 0; i < _rows * _cols; i++) {
-            if (this->data_[i] != mat.data_[i])
+            if (data_[i] != mat.data_[i])
                 return false;
         }
         return true;
@@ -212,7 +212,7 @@ class Matrixf
         for (uint16_t row = start_row; row < start_row + rows; row++) {
             // 拷贝行数据
             memcpy(res[0] + (row - start_row) * cols, 
-                   this->data_ + row * _cols + start_col, 
+                   data_ + row * _cols + start_col, 
                    cols * sizeof(float));
         }
         return res;
@@ -243,8 +243,7 @@ class Matrixf
      */
     float trace(void) const {
         float res = 0;
-        uint16_t min_dim = (_rows < _cols) ? _rows : _cols;
-        for (uint16_t i = 0; i < min_dim; i++) {
+        for (uint16_t i = 0; i < min_dim(); i++) {
             res += (*this)[i][i];
         }
         return res;
@@ -260,7 +259,7 @@ class Matrixf
     float dot(const Matrixf<_rows, _cols> &other) const {
         float32_t result = 0.0f;
         // 利用 CMSIS-DSP 计算两个数组的点积
-        arm_dot_prod_f32(this->data_, other.data_, _rows * _cols, &result);
+        arm_dot_prod_f32(data_, other.data_, _rows * _cols, &result);
         return result;
     }
 
@@ -268,8 +267,8 @@ class Matrixf
     * @brief 矩阵的欧几里得范数（Frobenius 范数）
     */
     float norm(void) const { 
-        return sqrtf(this->dot(*this));  // 标准库
-        // 或使用 CMSIS 的开方：float32_t r; arm_sqrt_f32(this->dot(*this), &r); return r;
+        return sqrtf(dot(*this));  // 标准库
+        // 或使用 CMSIS 的开方：float32_t r; arm_sqrt_f32(dot(*this), &r); return r;
     }
 
     /**
@@ -281,7 +280,7 @@ class Matrixf
         static_assert(_rows == _cols, "Matrix must be square to compute inverse");
 
         Matrixf<_cols, _rows> res;
-        arm_status status = arm_mat_inverse_f32(&this->arm_mat_, &res);
+        arm_status status = arm_mat_inverse_f32(&arm_mat_, &res);
 
         if (status == ARM_MATH_SINGULAR)
             return Matrixf<_cols, _rows>::zeros();
@@ -314,8 +313,7 @@ class Matrixf
      */
     static Matrixf<_rows, _cols> eye(void) {
         Matrixf<_rows, _cols> mat;
-        uint16_t min_dim = (_rows < _cols) ? _rows : _cols;
-        for (uint16_t i = 0; i < min_dim; i++) {
+        for (uint16_t i = 0; i < min_dim(); i++) {
             mat[i][i] = 1;
         }
         return mat;
@@ -327,14 +325,14 @@ class Matrixf
      */
     static Matrixf<_rows, _cols> diag(Matrixf<_rows, 1> vec) {
         Matrixf<_rows, _cols> res = Matrixf<_rows, _cols>::zeros();
-        uint16_t min_dim = (_rows < _cols) ? _rows : _cols;
-        for (uint16_t i = 0; i < min_dim; i++) {
+        for (uint16_t i = 0; i < min_dim(); i++) {
             res[i][i] = vec[i][0];
         }
         return res;
     }
 
     private:
+    static constexpr uint16_t min_dim() { return (_rows < _cols) ? _rows : _cols; }
     arm_matrix_instance_f32 arm_mat_;   // CMSIS-DSP 矩阵实例（包含行数、列数、数据指针）
 
     protected:

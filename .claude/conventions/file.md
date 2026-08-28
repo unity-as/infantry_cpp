@@ -68,11 +68,14 @@ project/modules/
 ├── serial/                   # 通用串口管理（不定长+daemon 超时）
 ├── daemon/                   # 看门狗（RTOS/裸机自适应）
 ├── dwt_protect/              # DWT 时间轴刷新守护
-└── alg/                      # 纯算法（不依赖外设）
-    ├── pid/                  # PID 控制器
-    ├── kalman_filter/        # 卡尔曼滤波
-    ├── ahrs/                 # 姿态解算
-    └── mahony/               # Mahony AHRS
+├── alg/                      # 纯算法（不依赖外设）
+│   ├── pid/                  # PID 控制器
+│   ├── kalman_filter/        # 卡尔曼滤波
+│   ├── ahrs/                 # 姿态解算
+│   └── mahony/               # Mahony AHRS
+└── utils/                    # 通用 C++ 基础设施（header-only，无外设依赖）
+    ├── matrix.hpp            # 矩阵/向量库（基于 CMSIS-DSP）
+    └── bit_flags.hpp         # 位标志枚举运算符宏
 ```
 
 ### application/ - 应用层

@@ -6,7 +6,7 @@
 - 重构代码结构，使其更加**模块化、易于理解和维护**。例如，将矩阵运算相关的函数封装成**类**或**命名空间**等。
 - 优化代码性能，例如使用 **CMSIS-DSP** 库中的函数来加速矩阵运算等。
 - 增加代码的可读性和可维护性，例如添加注释、文档等。
-- 用 **this** 和 **std::function** 解决回调函数和多实例问题
+- 回调机制保持 C 原版的**函数指针 + void* device** 显式传实例（不引入 std::function）
 
 ## 原因 （为什么）
 - 提升代码的可读性、可维护性和扩展性
@@ -27,14 +27,15 @@
 > 模块文件命名：全部小写，单词之间用下划线连接，例如：dji_motor.h, dji_motor.cpp
 > 类：大驼峰命名法，对于缩写词，全大写，例如：DJIMotor。对于完整单词，首字母大写，例如：PowerManager
 > 成员函数：小驼峰命名法，例如：setMotorSpeed。（对于性质相似的类，如：DJIMotor和FOCMotor都是电机，都有三模式（力、位、速）控制，成员函数的命名和api统一）
-> 成员变量：小写字母开头，单词之间用下划线连接，例如：motor_speed
+> 成员变量：全小写，单词之间用下划线连接，结尾加下划线，例如：motor_speed_；局部变量/参数：小写开头下划线连接，无结尾下划线，例如：motor_speed；模板参数：前面下划线，例如：_rows（三者互不重复，避免写 this->，避免与成员函数重名）
 > 宏定义：全部大写，单词之间用下划线连接，例如：DJI_MOTOR_SPEED
 > 枚举类型：大驼峰命名法，例如：MotorType
 > **全局实例** 要在全局空间或者静态空间下创建类（仅创建，无和外设相关的初始化行为），在初始化时写好 config，并调用 my_class.init(config);（原：全局指针，初始化写config，传Register）
 > 对于用完即弃的临时类，如 **矩阵** ，可直接利用 **构造** **析构** 函数管理，用完即弃。
 > 一切数据流请对齐 C 原代码的样式，我们在移植，代码实现的逻辑不更改。如：1. DJI电机数据收到 → 2. 回调解析电机数据 → 4. 电机PID后面用。3. 1ms定时器回调 → 4. DJI电机PID计算得电流指令（若开启了PID） → 5. DJI电机电流指令发送。又如：chassis初始化 → 算 scale → 后续用scale
-> 设计函数setCallback(std::function<void()> func) 成员函数，用于让调用方设置回调函数并保存
+> 回调用**函数指针 + void* device** 显式传实例，通过 setCallback 成员函数设置（函数指针成员私有隐藏），保持 C 原版机制（不用 std::function）
 > Martix 写好了，按命名规范改改就行
+> 成员枚举，成员结构体，用Config、Feature这种写法。Config 命名在每个实例属性的类内部都要存在
 
 #### 完成后，在docs创建文档，同时根据此文档报告规范的内容
 - 在docs创建文档，报告规范的内容
@@ -49,7 +50,7 @@
 - 先和用户逐项确定，请用一问一答的形式，逐项确定所有内容。若期间发现有其它需要补充的规范，可再议，仪完成后，再发给用户确认
 - 目前确定的有：
 > C 里做为一个**实例**或者**对象**的 struct 转为 class 类型，并选择性开放成员和成员函数，例如：DJIMotor_Instance（struct） 转 DJIMotor（class），Serial_Instance （struct）转 Serial（class）。
-> 回调函数写在class成员内部，对于 C 里面的 tim_callback(void* device) 这种传递 void* 的函数指针成员指向目标函数的做法，用 std::function<void()> 替换，内部通过 *this 而不是 *device 区分实例。对于存在业务逻辑的，自行设计业务逻辑参数。
+> 回调函数写在class成员内部，保持 C 原版的**函数指针 + void* device** 显式传实例（tim_callback(void* device) 原样保留），不用 std::function。对于存在业务逻辑的，自行设计业务逻辑参数。
 
 #### 完成后，在docs创建临时文档，同时根据此文档报告规范的内容
 - 在docs创建临时文档，报告计划的内容
@@ -68,16 +69,16 @@
 | :--- | :--- | :--- |
 | `void xxx_Register(config)` | `XXX motor(config); motor.init();` | 注册 → 构造 + init |
 | `void xxx_Set_Speed(inst, val)` | `motor.setSpeed(val);` | 删实例指针，改用 this |
-| `void (*callback)(void* device)` | `std::function<void()>` | 回调绑定通过 this 捕获，不再传 void* |
-| `void* device` 传参 | `this`（Lambda 捕获） | 多实例区分由对象自身维护 |
+| `void (*callback)(void* device)` | `void (*)(void* device)` 原样保留 | 回调机制不变，函数指针 + void* device |
+| `void* device` 传参 | `void* device`（setCallback 传入并保存） | 多实例区分由 device 显式传递 |
 
 ---
 
 ### 2. 内存与实时性审计（嵌入式关键）
 
 - **堆操作检查**：原代码中 `malloc`/`free` 调用 → 全部移除，改用栈对象或静态全局对象。
-- **中断路径分析**：原中断回调直接调用 `xxx_handler(device)` → 现通过 `std::function` 间接调用，新增开销约 **[请评估，如 < 1μs]**，在允许范围内。
-- **栈使用量变化**：新增成员变量约 **[X] 字节**（如 `std::function` 对象 32B），未超当前任务栈余量。
+- **中断路径分析**：原中断回调直接调用 `xxx_handler(device)` → 现仍通过函数指针 + `void* device` 直接调用，**零额外开销**。
+- **栈使用量变化**：新增成员变量约 **[X] 字节**（回调函数指针 + `void* device` 各 4B），未超当前任务栈余量。
 
 ---
 
