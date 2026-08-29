@@ -271,6 +271,11 @@ void AHRS::init(const Config& config) {
         .channel = TIM_CHANNEL_1,
     };
     imu_temp_.init(imu_temp_config);
+
+    // 对齐 C 版 AHRS_Register：注册完成后立即预热 + 陀螺仪校准 + 启动 RTOS 任务
+    preheat();
+    calibrate();
+    start();
 }
 
 void AHRS::preheat() {
@@ -281,6 +286,7 @@ void AHRS::preheat() {
         if (imu_temp_.isReady()) break;
         HAL_Delay(AHRS_TEMP_CTRL_PERIOD_MS);
     }
+    preheat_elapsed_ms_ = HAL_GetTick() - start; // 记录预热实际耗时 [ms]
     // 超时也继续，不阻塞启动
 }
 

@@ -9,7 +9,6 @@
 #include "config.h"
 #include "pid.h"
 #include "cmsis_os2.h"
-#include "SEGGER_RTT.h"
 
 #define GIMBAL_PITCH_CURRENT_FF  -0.150f
 
@@ -133,7 +132,6 @@ static void Gimbal_Task(void *arg)
 {
     (void)arg;
     uint8_t last_en = 0;
-    uint16_t dbg_div = 0;
     for (;;) {
         // 重新使能: 先同步目标再使能，避免定时器拿旧目标跑
         if (gimbal_cmd.enable && !last_en) {
@@ -141,17 +139,6 @@ static void Gimbal_Task(void *arg)
         }
         gc.enable(gimbal_cmd.enable);
         last_en = gimbal_cmd.enable;
-
-        // 调参打印: ~10ms 一次, pitch 速度环 (vt/av ×10, out ×1000, I ×100)
-        if (++dbg_div >= 10) {
-            dbg_div = 0;
-            SEGGER_RTT_printf(0, "P vt=%d av=%d out=%d I=%d ang=%d\r\n",
-                (int)(gc.pitch_.vel_target * 10.0f),
-                (int)(gc.pitch_.actual_vel * 10.0f),
-                (int)(gc.pitch_.pid_vel.output_ * 1000.0f),
-                (int)(gc.pitch_.pid_vel.integral_ * 100.0f),
-                (int)(gc.pitch_.actual_angle * 10.0f));
-        }
         osDelay(1);
     }
 }

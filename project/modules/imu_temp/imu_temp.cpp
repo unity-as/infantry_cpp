@@ -8,12 +8,12 @@ void IMUTemp::init(const Config& config) {
     target_temp_ = IMU_TEMP_TARGET;
 
     PID::Config pid_cfg = {
-        .kp = 1000.0f,
+        .kp = 2500.0f,
         .ki = 20.0f,
         .kd = 0.0f,
         .mode = PID::Mode::Position,
-        .features = PID::FeatureIntegralLimit | PID::FeatureOutputLimit,
-        .integral_limit = 300.0f,
+        .features = PID::FeatureIntegralLimit | PID::FeatureOutputLimit | PID::FeatureTrapezoidIntegral,
+        .integral_limit = 30.0f,
         .output_min = 0.0f,
         .output_max = 2000.0f,
     };

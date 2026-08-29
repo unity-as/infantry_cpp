@@ -13,7 +13,7 @@ struct Shoot_Cmd {
 
 extern Shoot_Cmd shoot_cmd;
 
-#define FRIC_SPEED_DEGS       1500.0f   // 摩擦轮工作速度 (输出轴 deg/s)
+#define FRIC_SPEED_DEGS       2000.0f   // 摩擦轮工作速度 (输出轴 deg/s)
 
 #define MAG_CAPACITY             8       // 拨盘装载量 发/圈
 #define MAG_DEG_PER_ROUND   (360.0f / MAG_CAPACITY)           // 45°

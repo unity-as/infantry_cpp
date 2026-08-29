@@ -248,8 +248,8 @@ void DJIMotor::init(const Config& config)
     pid_velocity_.init(vel_config);
     pid_velocity_.setFeatures(PID::FeatureFeedforward);
 
-    djim_can_.init(can_config);
     djim_can_.setCallback(decodeCallback, this);
+    djim_can_.init(can_config);
 
     daemon_lose_.init(daemon_config);
 

@@ -14,7 +14,7 @@ public:
     enum class Mode : uint8_t { Position = 0, Delta = 1 };
 
     /// 功能开关（位标志，C 风格枚举，值可直接 | 组合）
-    enum Feature : uint8_t {
+    enum Feature : uint16_t {
         FeatureNone                    = 0,
         FeatureIntegralLimit           = 1u << 0,  // 积分限幅 (增量式不需要)
         FeatureDerivativeLimit         = 1u << 1,  // 微分限幅
@@ -24,6 +24,7 @@ public:
         FeatureVariableGain            = 1u << 5,  // 变增益 PID
         FeatureDerivativeOnMeasurement = 1u << 6,  // 微分先行
         FeatureFeedforward             = 1u << 7,  // 前馈控制
+        FeatureTrapezoidIntegral       = 1u << 8,  // 梯形积分（位置式）
     };
 
     /// 初始化配置
@@ -32,7 +33,7 @@ public:
         float ki;                  // 积分系数
         float kd;                  // 微分系数
         Mode mode;                 // PID 模式
-        uint8_t features;         // 功能开关（位标志，直接 | 组合）
+        uint16_t features;        // 功能开关（位标志，直接 | 组合）
         float integral_limit;      // 积分限幅值
         float derivative_limit;    // 微分限幅值
         float output_min;          // 输出最小值
@@ -55,6 +56,7 @@ public:
     Feature getFeatures(Feature feature);                  ///< 替代 PID_Get_Features
     void setFeatures(Feature feature);                     ///< 替代 PID_Set_Features
     void clearFeatures(Feature feature);                   ///< 替代 PID_Clear_Features
+    void backCalcAntiWindup(float limited_output);         ///< 反算抗饱和回灌：外部限幅后回灌真实输出
     void update(float feedback);                           ///< 替代 PID_Update
 
     // —— 跨模块直接读的状态 ——
@@ -82,6 +84,6 @@ private:
     float last_2_error_ = 0.0f;
     float last_2_feedback_ = 0.0f;
     Mode mode_ = Mode::Position;
-    uint8_t features_ = FeatureNone;
+    uint16_t features_ = FeatureNone;
     uint8_t period_ = 1;
 };

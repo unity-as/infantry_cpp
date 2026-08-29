@@ -4,6 +4,7 @@
  * @note    从 C 版 pid 迁移，逻辑不变，禁堆。
  */
 #include "pid.h"
+#include <math.h>
 
 void PID::init(const Config& config) {
     kp_ = config.kp;
@@ -102,9 +103,10 @@ void PID::update(float feedback) {
             derivative = (error - 2*last_error_ + last_2_error_) / period_;
 
         // 微分限幅
-        if ((features_ & FeatureDerivativeLimit) != FeatureNone)
+        if ((features_ & FeatureDerivativeLimit) != FeatureNone) {
             if (derivative > derivative_limit_) derivative = derivative_limit_;
             else if (derivative < -derivative_limit_) derivative = -derivative_limit_;
+        }
 
         // 输出计算
         output_ += kp * (error - last_error_) + ki_ * integral_ + kd * derivative;
@@ -121,12 +123,18 @@ void PID::update(float feedback) {
         // 抗积分饱和
         if (!((features_ & FeatureOutputLimit) != FeatureNone &&
               ((output_ >= output_max_ && error > 0.0f) ||
-               (output_ <= output_min_ && error < 0.0f))))
-            integral_ += error * period_;
+               (output_ <= output_min_ && error < 0.0f)))) {
+            // 梯形积分：用前后误差均值近似面积，否则矩形
+            if ((features_ & FeatureTrapezoidIntegral) != FeatureNone)
+                integral_ += (error + last_error_) * period_ * 0.5f;
+            else
+                integral_ += error * period_;
+        }
         // 积分限幅
-        if ((features_ & FeatureIntegralLimit) != FeatureNone)
+        if ((features_ & FeatureIntegralLimit) != FeatureNone) {
             if (integral_ > integral_limit_) integral_ = integral_limit_;
             else if (integral_ < -integral_limit_) integral_ = -integral_limit_;
+        }
 
         // 微分先行
         float derivative;
@@ -136,9 +144,10 @@ void PID::update(float feedback) {
             derivative = (error - last_error_) / period_;
 
         // 微分限幅
-        if ((features_ & FeatureDerivativeLimit) != FeatureNone)
+        if ((features_ & FeatureDerivativeLimit) != FeatureNone) {
             if (derivative > derivative_limit_) derivative = derivative_limit_;
             else if (derivative < -derivative_limit_) derivative = -derivative_limit_;
+        }
 
         // 输出计算
         output_ = kp * error + ki_ * integral_ + kd * derivative;
@@ -149,10 +158,25 @@ void PID::update(float feedback) {
     }
 
     // 输出限幅
-    if ((features_ & FeatureOutputLimit) != FeatureNone)
+    if ((features_ & FeatureOutputLimit) != FeatureNone) {
         if (output_ > output_max_) output_ = output_max_;
         else if (output_ < output_min_) output_ = output_min_;
+    }
 
     last_error_ = error;
     last_feedback_ = feedback;
+}
+
+void PID::backCalcAntiWindup(float limited_output) {
+    // 反算抗饱和回灌：外部限幅后回灌真实输出，仅当新输出绝对值更小（被限得更狠）才生效
+    if (fabsf(limited_output) >= fabsf(output_))
+        return;
+
+    if (mode_ == Mode::Position) {
+        // 位置式：砍积分去对齐输出（输出差量全部由积分项吸收）
+        if (ki_ != 0.0f)
+            integral_ -= (output_ - limited_output) / ki_;
+    }
+    // 增量式：直接砍增量值（输出回退到被限后的值）
+    output_ = limited_output;
 }

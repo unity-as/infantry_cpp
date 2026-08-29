@@ -136,6 +136,7 @@ public:
 
     // —— 状态数据（公开，跨模块直接读）——
     Output output_ = {};            ///< 姿态/角速度/加速度输出
+    uint32_t preheat_elapsed_ms_ = 0;   ///< 预热实际耗时 [ms]
 
     // —— 生命周期 ——
     void init(const Config& config);   ///< 替代 AHRS_Register（外设初始化，禁堆）
