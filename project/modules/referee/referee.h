@@ -1,9 +1,14 @@
-#ifndef REFEREE_H
-#define REFEREE_H
+/**
+ * @file    referee.h
+ * @brief   裁判系统模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 referee 迁移，逻辑不变。referee_protocol.h（协议/结构定义头）保持原样。
+ *          去掉 extern "C"、改用 #pragma once（对齐 crc.h）。
+ */
+#pragma once
 
 #include "referee_protocol.h"
 #include "bsp_usart.h"
-#include "serial.h"
+#include <stdint.h>
 
 #pragma pack(1)
 
@@ -130,5 +135,3 @@ void Referee_UIChar(uint8_t *graph_name, uint8_t operate, uint8_t layer,
  * @param data 字符数据
  */
 void Referee_UICharRefresh(uint8_t *data);
-
-#endif // REFEREE_H

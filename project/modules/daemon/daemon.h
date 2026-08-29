@@ -1,71 +1,40 @@
-#ifndef DAEMON_H
-#define DAEMON_H
+/**
+ * @file    daemon.h
+ * @brief   守护进程 / 设备离线看门狗（C → C++）
+ * @note    从 C 版 daemon 迁移：struct Daemon_Instance → class Daemon，
+ *          Daemon_Register → init、Daemon_Reset → reset，逻辑不变，禁堆。
+ *          本项目固定 TIM_DAEMON_SUPPORT=1，故删除 RTOS 分支与死注册表。
+ */
+#pragma once
 
-//此处做自定义
-#define TIM_DAEMON_SUPPORT 1
-//
-
-#if (!defined(RTOS_DAEMON_SUPPORT) && !defined(TIM_DAEMON_SUPPORT))
-
-#if __has_include("cmsis_os2.h")// 如果检测到cmsis2_os头文件，则使用cmsis2的定时器功能实现Daemon
-    #include "cmsis_os2.h"
-    #define RTOS_DAEMON_SUPPORT 2
-#elif __has_include("cmsis_os.h")// 如果检测到cmsis_os头文件，则使用cmsis的定时器功能实现Daemon
-    #include "cmsis_os.h"
-    #define RTOS_DAEMON_SUPPORT 1
-#elif __has_include("bsp_tim.h")//若采用的是裸机开发的BSP_TIM，则使用BSP_TIM的定时器功能实现Daemon
-    #include "bsp_tim.h"
-    #define TIM_DAEMON_SUPPORT 1
-#else
-    #error "Daemon module requires cmsis or bsp_tim support"
-#endif
-
-#endif
-
-#if (RTOS_DAEMON_SUPPORT == 2)
-#include "cmsis_os2.h"
-#elif (RTOS_DAEMON_SUPPORT == 1)
-#include "cmsis_os.h"
-#elif (TIM_DAEMON_SUPPORT == 1)
 #include "bsp_tim.h"
-#endif
+#include <stdint.h>
 
-#define DEVICE_DAEMON_CNT 20
+class Daemon {
+public:
+    /// 初始化配置
+    struct Config {
+        TIM::Config tim_config;         ///< 时基定时器（建议 1ms 周期）
+        uint32_t cycle;                 ///< 超时周期数（单位与定时器周期一致）
+        void (*daemon_callback)(void*); ///< 离线回调
+        void* device;                   ///< 回调 device
+    };
 
-typedef struct
-{
-    #if TIM_DAEMON_SUPPORT
-    TIM_Instance *tim_instance;
-    uint32_t count;
-    #endif
+    /// 注册/初始化（替代 Daemon_Register，禁堆）
+    void init(const Config& config);
 
-    #if (RTOS_DAEMON_SUPPORT == 1)
-    osTimerId tim_instance;
-    #elif (RTOS_DAEMON_SUPPORT == 2)
-    osTimerId_t tim_instance;
-    #endif
+    /// 喂狗（替代 Daemon_Reset）
+    void reset();
 
-    uint32_t cycle;
-    uint8_t online;
+    // —— 跨模块读取/写入 ——
+    uint8_t online_ = 0;   ///< 1=在线，0=离线
 
-    void (*daemon_callback)(void*);
-    void *device;
-} Daemon_Instance;
+private:
+    static void timerCallback(void* arg);   ///< 替代 Timer_Callback
 
-typedef struct
-{
-    #if TIM_DAEMON_SUPPORT
-    TIM_Init_Config_s tim_config;
-    #endif
-
-    uint32_t cycle;
-
-    void (*daemon_callback)(void*);
-    void *device;
-} Daemon_Init_Config_s;
-
-void Daemon_Reset(Daemon_Instance *daemon);
-Daemon_Instance *Daemon_Register(Daemon_Init_Config_s *Daemon_config);
-void Daemon_Recall(void *daemon);
-
-#endif
+    TIM tim_;                                ///< 时基定时器
+    uint32_t cycle_ = 0;                     ///< 超时周期数
+    uint32_t count_ = 0;                     ///< 剩余周期计数
+    void (*daemon_callback_)(void*) = nullptr; ///< 离线回调
+    void* device_ = nullptr;                 ///< 回调 device
+};

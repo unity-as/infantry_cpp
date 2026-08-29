@@ -1,9 +1,12 @@
-#ifndef MINIPC_COMM_H
-#define MINIPC_COMM_H
+/**
+ * @file    minipc_comm.h
+ * @brief   miniPC 通信模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 minipc_comm 迁移，逻辑不变。去掉 extern "C"、改用 #pragma once（对齐 crc.h）。
+ */
+#pragma once
 
-#include "serial.h"
-#include "daemon.h"
 #include <stdint.h>
+#include "bsp_usart.h"
 
 #define MINIPC_RX_FRAME_LEN  15    // minipc → STM32
 #define MINIPC_TX_FRAME_LEN  20    // STM32 → minipc
@@ -38,5 +41,3 @@ minipc_rx_frame_t *Minipc_Init(UART_HandleTypeDef *huart);
 minipc_rx_frame_t *Minipc_GetData();
 uint8_t Minipc_Online();
 void Minipc_Send(float yaw, float pitch, float roll, float bullet_speed, uint8_t color);
-
-#endif

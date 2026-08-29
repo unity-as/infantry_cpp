@@ -1,12 +1,11 @@
-#ifndef CMD_H
-#define CMD_H
+/**
+ * @file    cmd.h
+ * @brief   指令/主控模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 cmd 迁移，逻辑不变。cmd_ahrs 由指针改为全局对象。
+ */
+#pragma once
 
 #include "ahrs.h"
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
 
 // ============ 遥控器 → 云台（增量式：满偏 ±660，1kHz 调用）============
 // 满偏转速 deg/s（可调），scale = 满偏转速 / 满偏量(660) / 1000(ms→s)
@@ -28,13 +27,7 @@ extern "C"
 #define MOUSE_GIMBAL_YAW_SCALE          0.001f
 #define MOUSE_GIMBAL_PITCH_SCALE        0.0005f
 
-extern AHRS_Instance *cmd_ahrs;
+extern AHRS cmd_ahrs;
 
 void Cmd_Init(void);
 void Cmd_Task(void);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

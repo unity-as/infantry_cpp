@@ -1,23 +1,29 @@
-#ifndef RGB_LED_H
-#define RGB_LED_H
+/**
+ * @file    rgb_led.h
+ * @brief   RGB LED 模块（C → C++）
+ * @note    从 C 版 rgb_led 迁移：struct RGB_Instance → class RGB，
+ *          RGB_Register → init、RGB_Init → initDefault、RGB_Set → set，逻辑不变，禁堆。
+ */
+#pragma once
 
 #include "bsp_pwm.h"
 
-typedef struct {
-    PWM_Instance *r;
-    PWM_Instance *g;
-    PWM_Instance *b;
-} RGB_Instance;
+class RGB {
+public:
+    /// 初始化配置
+    struct Config {
+        TIM_HandleTypeDef* htim;   ///< TIM 句柄
+        uint32_t ch_r;             ///< 红通道
+        uint32_t ch_g;             ///< 绿通道
+        uint32_t ch_b;             ///< 蓝通道
+    };
 
-typedef struct {
-    TIM_HandleTypeDef *htim;
-    uint32_t ch_r;
-    uint32_t ch_g;
-    uint32_t ch_b;
-} RGB_Init_Config_s;
+    void init(const Config& config);   ///< 替代 RGB_Register（禁堆）
+    void initDefault();                ///< 替代 RGB_Init（硬编码 htim5 + 三通道）
+    void set(uint16_t r, uint16_t g, uint16_t b);  ///< 替代 RGB_Set
 
-RGB_Instance *RGB_Register(RGB_Init_Config_s *config);
-RGB_Instance *RGB_Init(void);
-void RGB_Set(RGB_Instance *rgb, uint16_t r, uint16_t g, uint16_t b);
-
-#endif
+private:
+    PWM r_;   ///< 红通道 PWM
+    PWM g_;   ///< 绿通道 PWM
+    PWM b_;   ///< 蓝通道 PWM
+};

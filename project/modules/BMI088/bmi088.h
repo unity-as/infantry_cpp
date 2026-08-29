@@ -1,5 +1,11 @@
-#ifndef BMI088_H
-#define BMI088_H
+/**
+ * @file    bmi088.h
+ * @brief   BMI088 六轴 IMU（加速度计 + 陀螺仪）驱动（C → C++）
+ * @note    从 C 版 bmi088 迁移：struct BMI088_Instance → class BMI088，Register → init、
+ *          BMI088_Read_X/Set_X → readX/setX，逻辑不变，禁堆。
+ *          加速度计/陀螺仪分两个 SPI 从机（各占一个软件片选）。
+ */
+#pragma once
 
 #include "bsp_spi.h"
 #include "bsp_dwt.h"
@@ -125,74 +131,63 @@
 #define BMI088_TEMP_FACTOR          0.125f
 #define BMI088_TEMP_OFFSET          23.0f
 
-/*---------- 配置枚举 ----------*/
+class BMI088 {
+public:
+    /// 加速度计量程
+    enum class AccRange : uint8_t { G3 = 0, G6 = 1, G12 = 2, G24 = 3 };
+    /// 陀螺仪量程（枚举值与寄存器编码反向：0=2000dps ... 4=125dps）
+    enum class GyroRange : uint8_t { Dps125 = 0, Dps250 = 1, Dps500 = 2, Dps1000 = 3, Dps2000 = 4 };
 
-typedef enum {
-    BMI088_ACC_RANGE_3G_E = 0,
-    BMI088_ACC_RANGE_6G_E,
-    BMI088_ACC_RANGE_12G_E,
-    BMI088_ACC_RANGE_24G_E,
-} BMI088_AccRange_e;
+    /// 初始化配置
+    struct Config {
+        SPI::Config spi_acc_config;   ///< 加速度计 SPI 从机配置
+        SPI::Config spi_gyro_config;  ///< 陀螺仪 SPI 从机配置
+        AccRange accel_range;         ///< 加速度计量程
+        GyroRange gyro_range;         ///< 陀螺仪量程
 
-typedef enum {
-    BMI088_GYRO_RANGE_125_E = 0,
-    BMI088_GYRO_RANGE_250_E,
-    BMI088_GYRO_RANGE_500_E,
-    BMI088_GYRO_RANGE_1000_E,
-    BMI088_GYRO_RANGE_2000_E,
-} BMI088_GyroRange_e;
+        // 椭球拟合校准参数 (离线生成，不填则不校准)
+        float accel_offset[3];        ///< 加速度偏移
+        float accel_M[9];             ///< 3×3 修正矩阵（M[0]!=0 表示启用）
+    };
 
-/*---------- 实例结构体 ----------*/
-
-typedef struct {
-    // SPI 接口
-    SPI_Instance *spi_acc;
-    SPI_Instance *spi_gyro;
-
-    // 量程配置
-    BMI088_AccRange_e accel_range;
-    BMI088_GyroRange_e gyro_range;
-
-    // 陀螺仪校准参数 (运行时校准)
-    float gyro_offset[3];
-
-    // 加速度计椭球拟合校准 (离线生成)
-    uint8_t use_ellipsoid_cal;   // 1=使用椭球校准, 0=不校准
-    float accel_offset[3];       // 加速度偏移
-    float accel_M[9];            // 3×3 修正矩阵 (含 scale + 非正交性)
-
-    // 输出数据 (单位: m/s², rad/s, °C)
-    struct {
+    /// 三维向量
+    struct Vector3 {
         float x, y, z;
-    } accel;
-    struct {
-        float x, y, z;
-    } gyro;
-    float temperature;
-} BMI088_Instance;
+    };
 
-/*---------- 初始化配置 ----------*/
+    // —— 输出数据（跨模块读取）——
+    Vector3 accel = {};       ///< 加速度 [m/s²]
+    Vector3 gyro = {};        ///< 角速度 [rad/s]
+    float temperature = 0.0f; ///< 温度 [°C]
 
-typedef struct {
-    SPI_Init_Config_s spi_acc_config;
-    SPI_Init_Config_s spi_gyro_config;
-    BMI088_AccRange_e accel_range;
-    BMI088_GyroRange_e gyro_range;
+    void init(const Config& config);       ///< 替代 BMI088_Register（禁堆）
+    bool valid() const { return valid_; }  ///< 芯片 ID 校验是否通过
 
-    // 椭球拟合校准参数 (离线生成，不填则不校准)
-    float accel_offset[3];       // 加速度偏移
-    float accel_M[9];            // 3×3 修正矩阵
-} BMI088_Init_Config_s;
+    void setAccelRange(AccRange range);    ///< 替代 BMI088_Set_Accel_Range
+    void setGyroRange(GyroRange range);    ///< 替代 BMI088_Set_Gyro_Range
+    void readAccel();                      ///< 替代 BMI088_Read_Accel
+    void readGyro();                       ///< 替代 BMI088_Read_Gyro
+    void readTemp();                       ///< 替代 BMI088_Read_Temp
+    void readAll();                        ///< 替代 BMI088_Read_All
+    void calibrate();                      ///< 替代 BMI088_Calibrate
 
-/*---------- API ----------*/
+private:
+    // SPI 读写（BMI088 Accel 读需要 dummy byte）
+    void accReadReg(uint8_t reg, uint8_t* buf, uint8_t len);
+    void accWriteReg(uint8_t reg, uint8_t data);
+    void gyroReadReg(uint8_t reg, uint8_t* buf, uint8_t len);
+    void gyroWriteReg(uint8_t reg, uint8_t data);
 
-BMI088_Instance *BMI088_Register(BMI088_Init_Config_s *config);
-void BMI088_Set_Accel_Range(BMI088_Instance *bmi088, BMI088_AccRange_e range);
-void BMI088_Set_Gyro_Range(BMI088_Instance *bmi088, BMI088_GyroRange_e range);
-void BMI088_Read_Accel(BMI088_Instance *bmi088);
-void BMI088_Read_Gyro(BMI088_Instance *bmi088);
-void BMI088_Read_Temp(BMI088_Instance *bmi088);
-void BMI088_Read_All(BMI088_Instance *bmi088);
-void BMI088_Calibrate(BMI088_Instance *bmi088);
+    uint8_t accInit();   ///< 加速度计初始化（软复位 + 芯片 ID 校验 + 配置）
+    uint8_t gyroInit();  ///< 陀螺仪初始化
 
-#endif
+    SPI spi_acc_;          ///< 加速度计 SPI 从机
+    SPI spi_gyro_;         ///< 陀螺仪 SPI 从机
+    AccRange accel_range_ = AccRange::G3;       ///< 加速度计量程
+    GyroRange gyro_range_ = GyroRange::Dps125;  ///< 陀螺仪量程
+    float gyro_offset_[3] = {};                 ///< 陀螺仪零偏（运行时校准）
+    uint8_t use_ellipsoid_cal_ = 0;             ///< 是否使用椭球拟合校准
+    float accel_offset_[3] = {};                ///< 加速度偏移
+    float accel_M_[9] = {};                     ///< 3×3 修正矩阵
+    bool valid_ = false;                        ///< 初始化成功标志
+};

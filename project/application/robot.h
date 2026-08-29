@@ -1,8 +1,6 @@
 #ifndef ROBOT_H
 #define ROBOT_H
 
-#include "config.h"
-
 #ifdef __cplusplus
 extern "C"
 {

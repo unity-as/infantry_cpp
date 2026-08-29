@@ -1,90 +1,60 @@
-#ifndef KALMAN_FILTER_H
-#define KALMAN_FILTER_H
+/**
+ * @file    kalman_filter.h
+ * @brief   卡尔曼滤波器（线性 KF / EKF）模板类声明
+ * @note    从 C 版 kalman_filter 迁移：状态维度 _n、观测维度 _m 为编译期常量，
+ *          矩阵运算基于 Matrixf（matrix.hpp）。本类为「模板 + 逻辑」，实现见 .cpp
+ *          （显式实例化），非 header-only。
+ */
+#pragma once
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "matrix.hpp"
 
-/*============================================
- * KF Instance - 卡尔曼滤波器实例
- *
- * 缓冲区管理原则: 每个中间结果有独立存储，避免别名覆盖
- *
- * 状态向量: x [n]
- * 协方差矩阵: P [n×n]
- * 工作缓冲区:
- *   - tmp_n [n]: F×x, x+K×y 等向量结果
- *   - tmp_m [m]: H×x, y=z-H×x 等观测残差
- *   - tmp_nn [n×n]: F×P, F^T, S^(-1), I-KH 等矩阵
- *   - tmp_nn2 [n×n]: KH, (I-KH)×P 等中间矩阵
- *   - tmp_mm [m×m]: S = H×P×H^T+R
- *   - tmp_nm [n×m]: PHt, K 等卡尔曼增益相关
- ============================================*/
+/**
+ * @brief 卡尔曼滤波器（线性 KF 与 EKF）
+ * @tparam _n 状态维度
+ * @tparam _m 观测维度
+ */
+template <int _n, int _m>
+class KalmanFilter {
+    static_assert(_n > 0 && _m > 0, "KF 维度必须为正");
 
-typedef struct KF_Instance {
-    int n;                              // 状态维度
-    int m;                              // 观测维度
-    float *x;                           // 状态向量 [n]
-    float *P;                           // 协方差矩阵 [n×n]
+public:
+    // 计算钩子：第一参数为强类型实例引用（对应 C 版 KF_Instance*）
+    using PredictCallback = void (*)(KalmanFilter& kf, float* F, const float* u);
+    using UpdateCallback  = void (*)(KalmanFilter& kf, float* H, float* h_x, const float* z);
 
-    // 用户回调 (EKF/UKF 用)
-    // predict_callback: 计算 F 矩阵 (状态转移 Jacobian)
-    //   kf: KF实例
-    //   F: 输出 F 矩阵 [n×n]
-    //   u: 控制输入 (可为 NULL)
-    void (*predict_callback)(struct KF_Instance *kf, float *F, const float *u);
+    // 编译期维度（对应 C 版 kf->n / kf->m，供外部读取）
+    static constexpr int kStateDim = _n;
+    static constexpr int kObsDim   = _m;
 
-    // update_callback: 计算 H 矩阵 (观测 Jacobian) 和 h(x) (预测观测)
-    //   kf: KF实例
-    //   H: 输出 H 矩阵 [m×n]
-    //   h_x: 输出 h(x) 向量 [m] (预测的观测值)
-    //   z: 实际观测值 [m] (用于参考，可不用)
-    void (*update_callback)(struct KF_Instance *kf, float *H, float *h_x, const float *z);
+    /// 初始化配置
+    struct Config {
+        const float* x_init;   ///< 初始状态 [_n]，可为 nullptr（默认零向量）
+        const float* P_init;   ///< 初始协方差 [_n×_n]，可为 nullptr（默认单位阵）
+        float lambda;          ///< 渐消因子 (0~1]，<=0 或 >1 取 1（标准 KF）
+    };
 
-    float lambda;                       // 渐消因子 (0~1, 1=标准KF)
+    // —— 状态数据（公开，供外部直接读，对应 C 版 kf->x / kf->P）——
+    Matrixf<_n, 1> x_;         ///< 状态向量（列向量）
+    Matrixf<_n, _n> P_;        ///< 协方差矩阵
 
-    // 内部工作缓冲区
-    float *tmp_n;                       // [n] 向量计算
-    float *tmp_m;                       // [m] 向量计算
-    float *tmp_nn;                      // [n×n] 矩阵计算
-    float *tmp_nn2;                     // [n×n] 矩阵计算
-    float *tmp_nn3;                     // [n×n] 矩阵计算 (F^T 专用)
-    float *tmp_mm;                      // [m×m] 矩阵计算
-    float *tmp_nm;                      // [n×m] PHt, 临时计算
-    float *K;                           // [n×m] 卡尔曼增益
-} KF_Instance;
+    // —— 生命周期 ——
+    void init(const Config& config);                     ///< 替代 KF_Register（无堆，无需 free）
+    void reset(const float* x_new, const float* P_new);  ///< 替代 KF_Reset
 
-/*============================================
- * 初始化配置
- ============================================*/
+    // —— 回调 ——
+    void setPredictCallback(PredictCallback cb);  ///< 替代 KF_Set_Predict_Callback
+    void setUpdateCallback(UpdateCallback cb);    ///< 替代 KF_Set_Update_Callback
 
-typedef struct {
-    int n;                              // 状态维度
-    int m;                              // 观测维度
-    const float *x_init;                // 初始状态 [n], 可为NULL
-    const float *P_init;                // 初始协方差 [n×n], 可为NULL
-    float lambda;                       // 渐消因子 (0~1), 0=标准KF
-} KF_Init_Config_s;
+    // —— 滤波 ——
+    void predict(const Matrixf<_n, _n>& F, const Matrixf<_n, _n>& Q);          ///< 线性预测
+    bool update(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H, const Matrixf<_m, _m>& R);  ///< 线性更新
+    void predictEKF(const Matrixf<_n, _n>& Q, const float* u);                 ///< EKF 预测
+    bool updateEKF(const Matrixf<_m, 1>& z, const Matrixf<_m, _m>& R, const float* u);         ///< EKF 更新
+    float chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H);       ///< 卡方检验
 
-/*============================================
- * API
- ============================================*/
-
-KF_Instance *KF_Register(KF_Init_Config_s *config);
-void KF_Free(KF_Instance *kf);
-void KF_Reset(KF_Instance *kf, const float *x_new, const float *P_new);
-
-// 设置回调 (用于 EKF)
-void KF_Set_Predict_Callback(KF_Instance *kf, void (*cb)(struct KF_Instance*, float*, const float*));
-void KF_Set_Update_Callback(KF_Instance *kf, void (*cb)(struct KF_Instance*, float*, float*, const float*));
-
-// 线性卡尔曼滤波
-void KF_Predict(KF_Instance *kf, const float *F, const float *Q);
-bool KF_Update(KF_Instance *kf, const float *z, const float *H, const float *R);
-
-// EKF: 预测步 (用户通过回调提供F矩阵)
-void KF_Predict_EKF(KF_Instance *kf, const float *Q, const float *u);
-
-// EKF: 更新步 (用户通过回调提供H矩阵和h(x))
-bool KF_Update_EKF(KF_Instance *kf, const float *z, const float *R, const float *u);
-
-#endif // KALMAN_FILTER_H
+private:
+    float lambda_ = 1.0f;                        ///< 渐消因子
+    PredictCallback predict_callback_ = nullptr;
+    UpdateCallback update_callback_ = nullptr;
+};

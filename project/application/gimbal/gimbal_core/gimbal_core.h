@@ -1,89 +1,89 @@
-#ifndef GIMBAL_CORE_H
-#define GIMBAL_CORE_H
+/**
+ * @file    gimbal_core.h
+ * @brief   云台双轴串级 PID 控制核心（C → C++）
+ * @note    从 C 版 gimbal_core 迁移：struct Gimbal_Instance → class Gimbal，
+ *          Gimbal_Register → init，逻辑不变，禁堆（malloc 实例改为内嵌对象）。
+ */
+#pragma once
 
 #include "dji_motor.h"
 #include "ahrs.h"
 #include "pid.h"
+#include "bsp_tim.h"
 
-/*============================================
- * 控制模式
- ============================================*/
+#define GIMBAL_MAX  4
 
-typedef enum {
-    GIMBAL_POSITION_MODE,   // 位置环 → 速度环
-    GIMBAL_VELOCITY_MODE,   // 直接速度环
-} Gimbal_Mode;
+class Gimbal {
+public:
+    /// 控制模式
+    enum class Mode : uint8_t {
+        Position = 0,   // 位置环 → 速度环
+        Velocity,       // 直接速度环
+    };
 
-/*============================================
- * 云台单轴数据结构 — 封装 PID/电机/目标/状态
- ============================================*/
+    /// 云台单轴数据结构 — 封装 PID/电机/目标/状态
+    struct Axis {
+        DJIMotor motor;               // 电机（内嵌，禁堆）
+        PID pid_pos;                  // 位置环
+        PID pid_vel;                  // 速度环
+        Mode mode = Mode::Position;   // 控制模式
+        float target = 0.0f;          // 目标角度 [deg]（位置模式）
+        float vel_target = 0.0f;      // 目标角速度 [deg/s]（速度模式）
+        float actual_angle = 0.0f;    // 实际角度 [deg]
+        float actual_vel = 0.0f;      // 实际角速度 [deg/s]
+        float vel_ff = 0.0f;          // 速度前馈 [deg/s]
+        float curr_ff = 0.0f;         // 电流前馈
+        uint8_t div_cnt = 0;
+        uint8_t pos_freq_div = 1;     // 位置环分频
+    };
 
-typedef struct {
-    DJIMotor_Instance *motor;
-    PID_Instance      *pid_pos;       // 位置环
-    PID_Instance      *pid_vel;       // 速度环
-    Gimbal_Mode  mode;                // 控制模式
-    float  target;                    // 目标角度 [deg]（位置模式）
-    float  vel_target;                // 目标角速度 [deg/s]（速度模式）
-    float  actual_angle;             // 实际角度 [deg]
-    float  actual_vel;               // 实际角速度 [deg/s]
-    float  vel_ff;                   // 速度前馈 [deg/s]
-    float  curr_ff;                  // 电流前馈
-    uint8_t div_cnt;
-    uint8_t pos_freq_div;            // 位置环分频
-} Gimbal_Axis;
+    /// 初始化配置
+    struct Config {
+        AHRS* ahrs;
+        CAN_HandleTypeDef* can_handle;
+        TIM_HandleTypeDef* htim;
+        uint8_t motor_id_yaw;
+        uint8_t motor_id_pitch;
+        float initial_angle_yaw;
+        float initial_angle_pitch;
+        PID::Config pid_yaw_pos;
+        PID::Config pid_pitch_pos;
+        PID::Config pid_yaw_vel;
+        PID::Config pid_pitch_vel;
+        uint8_t pos_freq_div_yaw;
+        uint8_t pos_freq_div_pitch;
+        float yaw_min, yaw_max;
+        float pitch_min, pitch_max;
+    };
 
-/*============================================
- * 云台实例 — 双轴 (yaw/pitch)
- ============================================*/
+    void init(const Config& config);   // 替代 Gimbal_Register
 
-typedef struct {
-    AHRS_Instance *ahrs;
-    Gimbal_Axis    yaw;
-    Gimbal_Axis    pitch;
-    float yaw_min, yaw_max;          // 限位 [deg]
-    float pitch_min, pitch_max;      // 限位 [deg]
-} Gimbal_Instance;
+    // —— 跨模块读取的状态 ——
+    AHRS* ahrs_;               // AHRS（gimbal 层 SyncTarget 读其输出）
+    Axis yaw_;                 // yaw 轴
+    Axis pitch_;               // pitch 轴
+    float yaw_min_, yaw_max_;       // 限位 [deg]
+    float pitch_min_, pitch_max_;   // 限位 [deg]
 
-/*============================================
- * 初始化配置
- ============================================*/
+    // —— API ——
+    void enablePitch(uint8_t enable);                          // 替代 Gimbal_Enabale_Pitch
+    void enableYaw(uint8_t enable);                            // 替代 Gimbal_Enabale_Yaw
+    void enable(uint8_t enable);                               // 替代 Gimbal_Enable
+    void setTarget(float yaw, float pitch);                    // 替代 Gimbal_SetTarget
+    void setIncrement(float yaw_delta, float pitch_delta);     // 替代 Gimbal_SetIncrement
+    void setPitchAbsolute(float angle);                        // 替代 Gimbal_SetPitchAbsolute
+    void setMode(Mode yaw_mode, Mode pitch_mode);              // 替代 Gimbal_SetMode
+    void setVelocity(float yaw_vel, float pitch_vel);          // 替代 Gimbal_SetVelocity
+    void setVelocityFF(float yaw_ff, float pitch_ff);          // 替代 Gimbal_SetVelocityFF
+    void setCurrentFF(float yaw_ff, float pitch_ff);           // 替代 Gimbal_SetCurrentFF
+    float getYawAngle();                                       // 替代 Gimbal_GetYawAngle
 
-typedef struct {
-    AHRS_Instance      *ahrs;
-    CAN_HandleTypeDef  *can_handle;
-    TIM_HandleTypeDef  *htim;
-    uint8_t  motor_id_yaw;
-    uint8_t  motor_id_pitch;
-    float initial_angle_yaw;
-    float initial_angle_pitch;
-    PID_Init_Config_s pid_yaw_pos;
-    PID_Init_Config_s pid_pitch_pos;
-    PID_Init_Config_s pid_yaw_vel;
-    PID_Init_Config_s pid_pitch_vel;
-    uint8_t pos_freq_div_yaw;
-    uint8_t pos_freq_div_pitch;
-    float yaw_min,   yaw_max;
-    float pitch_min, pitch_max;
-} Gimbal_Init_Config_s;
+private:
+    void axisUpdate(Axis& axis);               // 替代 Gimbal_AxisUpdate
+    void update();                             // 替代 Gimbal_Update
+    static void timCallback(void* device);     // 替代 Gimbal_TimHandler
 
-/*============================================
- * API
- ============================================*/
-
-Gimbal_Instance *Gimbal_Register(Gimbal_Init_Config_s *config);
-
-void Gimbal_Enabale_Pitch(Gimbal_Instance *gc, uint8_t enable);
-void Gimbal_Enabale_Yaw(Gimbal_Instance *gc, uint8_t enable);
-void   Gimbal_Enable(Gimbal_Instance *gc, uint8_t enable);
-
-void   Gimbal_SetTarget(Gimbal_Instance *gc, float yaw, float pitch);
-void   Gimbal_SetIncrement(Gimbal_Instance *gc, float yaw_delta, float pitch_delta);
-void   Gimbal_SetPitchAbsolute(Gimbal_Instance *gc, float angle);
-void   Gimbal_SetMode(Gimbal_Instance *gc, Gimbal_Mode yaw_mode, Gimbal_Mode pitch_mode);
-void   Gimbal_SetVelocity(Gimbal_Instance *gc, float yaw_vel, float pitch_vel);
-void   Gimbal_SetVelocityFF(Gimbal_Instance *gc, float yaw_ff, float pitch_ff);
-void   Gimbal_SetCurrentFF(Gimbal_Instance *gc, float yaw_ff, float pitch_ff);
-float  Gimbal_GetYawAngle(Gimbal_Instance *gc);
-
-#endif
+    static Gimbal* instances_[GIMBAL_MAX];     // 实例注册表
+    static uint8_t idx_;                       // 已注册数
+    static TIM tim_;                           // 更新定时器
+};

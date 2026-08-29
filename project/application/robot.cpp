@@ -1,4 +1,5 @@
 #include "robot.h"
+#include "config.h"
 #include "bsp_dwt.h"
 #include "dji_motor.h"
 #include "cmd.h"
@@ -16,7 +17,7 @@ void Robot_Init(void)
     Gimbal_Init();
     Shoot_Init();
 
-    DJIMotor_TimbaseSelect(&htim5);
+    DJIMotor::timbaseSelect(&htim5);
 }
 
 void Robot_Task(void)

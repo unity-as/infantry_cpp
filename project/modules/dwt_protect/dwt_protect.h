@@ -1,24 +1,13 @@
-#ifndef DWT_PROTECT_H
-#define DWT_PROTECT_H
+/**
+ * @file    dwt_protect.h
+ * @brief   DWT 守护模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 dwt_protect 迁移，逻辑不变。本项目使用 FreeRTOS（CMSIS-RTOS2），
+ *          保留 RTOS 分支，删除裸机 TIM 占位分支。
+ */
+#pragma once
 
-/* ========== 平台检测 ========== */
-#if __has_include("cmsis_os2.h")
-    #include "cmsis_os2.h"
-    #define DWT_DAEMON_SUPPORT_RTOS 2
-#elif __has_include("cmsis_os.h")
-    #include "cmsis_os.h"
-    #define DWT_DAEMON_SUPPORT_RTOS 1
-#elif __has_include("bsp_tim.h")
-    #include "bsp_tim.h"
-    #define DWT_DAEMON_SUPPORT_BSP_TIM 1
-#else
-    #error "DWT Daemon requires CMSIS-RTOS or bsp_tim support"
-#endif
+#include "cmsis_os2.h"
 
-/* ========== 配置 ========== */
 #define DWT_DAEMON_PERIOD_MS  10000   // 更新时间间隔，单位 ms
 
-/* ========== API ========== */
 void DWT_DaemonInit(void);
-
-#endif

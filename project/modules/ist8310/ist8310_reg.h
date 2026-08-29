@@ -1,6 +1,11 @@
 #ifndef IST8310_REG_H
 #define IST8310_REG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /*---------- IST8310 寄存器地址 ----------*/
 
 #define IST8310_REG_WHO_AM_I    0x00
@@ -34,5 +39,10 @@
 /*---------- 灵敏度 ----------*/
 
 #define IST8310_MAG_SEN         0.3f  // µT/LSB
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,28 +1,34 @@
-#ifndef BSP_ADC_H
-#define BSP_ADC_H
+/**
+ * @file    bsp_adc.h
+ * @brief   ADC（C → C++）
+ * @note    从 C 版 bsp_adc 迁移：struct ADC_Instance → class ADC，ADCRegister → init、
+ *          ADCGetRaw/ADCGetVoltage → getRaw/getVoltage，逻辑不变，禁堆。
+ */
+#pragma once
 
 #include <stdint.h>
-#include "adc.h" // CubeMX 生成头,提供 ADC_HandleTypeDef
+#include "adc.h"
 
-#define ADC_MX_DEVICE_NUM 8 // 最大支持的ADC实例数量
+#define ADC_MX_DEVICE_NUM 8  // 最大支持的ADC实例数量
 
-/* ADC实例 */
-typedef struct
-{
-    ADC_HandleTypeDef *adc_handle; // adc句柄
-    float vref;                    // 参考电压 V
-    uint16_t full_scale;           // 满量程原始值,由 Init.Resolution 自动推导
-} ADC_Instance;
+#undef ADC  // stm32f407xx.h 遗留 `#define ADC ADC123_COMMON`，与类名冲突
 
-/* ADC初始化模板 */
-typedef struct
-{
-    ADC_HandleTypeDef *adc_handle; // adc句柄
-    float vref;                    // 参考电压 V
-} ADC_Init_Config_s;
+class ADC {
+public:
+    /// 初始化配置
+    struct Config {
+        ADC_HandleTypeDef* adc_handle;  ///< ADC 句柄
+        float vref;                     ///< 参考电压 V
+    };
 
-ADC_Instance *ADCRegister(ADC_Init_Config_s *config);
-uint16_t ADCGetRaw(ADC_Instance *inst);
-float ADCGetVoltage(ADC_Instance *inst);
+    void init(const Config& config);  ///< 替代 ADCRegister（禁堆）
+    uint16_t getRaw();                ///< 替代 ADCGetRaw
+    float getVoltage();               ///< 替代 ADCGetVoltage
 
-#endif
+private:
+    uint16_t fullScale(uint32_t resolution);  ///< 替代 ADC_FullScale，按位宽推导满量程
+
+    ADC_HandleTypeDef* adc_handle_ = nullptr;  ///< ADC 句柄
+    float vref_ = 0.0f;                        ///< 参考电压 V
+    uint16_t full_scale_ = 0;                  ///< 满量程原始值
+};

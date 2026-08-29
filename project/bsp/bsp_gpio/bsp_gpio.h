@@ -1,39 +1,51 @@
-#ifndef BSP_GPIO_H
-#define BSP_GPIO_H
+/**
+ * @file    bsp_gpio.h
+ * @brief   GPIO（C → C++）
+ * @note    从 C 版 bsp_gpio 迁移：struct GPIO_Instance → class GPIO，GPIO_Register → init、
+ *          GPIO_ReadPin/WritePin/TogglePin → readPin/writePin/togglePin，逻辑不变，禁堆。
+ */
+#pragma once
 
 #include "gpio.h"
-__GPIO_H__
+#include <stdint.h>
 
-#define GPIO_MX_DEVICE_NUM 20       
+#define GPIO_MX_DEVICE_NUM 20
 
-typedef enum
-{
-    GPIO_EXTI_MODE_NONE=0u,
-    GPIO_EXTI_MODE_RISING,
-    GPIO_EXTI_MODE_FALLING,
-    GPIO_EXTI_MODE_RISING_FALLING,
-} GPIO_EXTI_MODE_e;
+class GPIO {
+public:
+    /// EXTI 触发模式
+    enum class ExtiMode : uint8_t {
+        None = 0,       ///< 无
+        Rising,         ///< 上升沿
+        Falling,        ///< 下降沿
+        RisingFalling,  ///< 双边沿
+    };
 
-typedef struct gpio
-{
-    GPIO_TypeDef *GPIOx;
-    uint16_t GPIO_Pin;
-    GPIO_PinState PinState;
-    GPIO_EXTI_MODE_e exti_mode;
-    void (*gpio_callback)(struct gpio*)
-} GPIO_Instance;
+    using Callback = void (*)(GPIO*);   ///< EXTI 回调，参数为 GPIO 实例
 
-typedef struct
-{
-    GPIO_TypeDef *GPIOx;
-    uint16_t GPIO_Pin;
-    GPIO_PinState PinState;
-    GPIO_EXTI_MODE_e exti_mode
-} GPIO_Init_Config_s;
+    /// 初始化配置
+    struct Config {
+        GPIO_TypeDef* gpio_x;     ///< GPIO 端口
+        uint16_t pin;             ///< 引脚
+        GPIO_PinState pin_state;  ///< 初始电平
+        ExtiMode exti_mode;       ///< EXTI 模式
+    };
 
-GPIO_Instance *GPIO_Register(GPIO_Init_Config_s *GPIO_config);
-GPIO_PinState GPIO_ReadPin(GPIO_Instance *gpio);
-void GPIO_WritePin(GPIO_Instance *gpio, GPIO_PinState state);
-void GPIO_TogglePin(GPIO_Instance *gpio);
+    void init(const Config& config);      ///< 替代 GPIO_Register（禁堆）
+    GPIO_PinState readPin();              ///< 替代 GPIO_ReadPin
+    void writePin(GPIO_PinState state);   ///< 替代 GPIO_WritePin
+    void togglePin();                     ///< 替代 GPIO_TogglePin
+    void setCallback(Callback callback);  ///< 设置 EXTI 回调
 
-#endif
+    static void extiCallback(uint16_t pin);  ///< EXTI 分发
+
+private:
+    GPIO_TypeDef* gpio_x_ = nullptr;    ///< GPIO 端口
+    uint16_t pin_ = 0;                  ///< 引脚
+    GPIO_PinState pin_state_;           ///< 初始电平
+    ExtiMode exti_mode_;                ///< EXTI 模式
+    Callback callback_ = nullptr;       ///< EXTI 回调
+
+    static GPIO* instances_[GPIO_MX_DEVICE_NUM];  ///< 实例注册表
+    static uint8_t idx_;                          ///< 已注册数
+};

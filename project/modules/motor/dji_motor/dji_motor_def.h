@@ -10,6 +10,11 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #define GM6020_VOLTAGE_CONTROL 1  //GM6020采用电压控制的开关
 
 typedef enum
@@ -91,5 +96,10 @@ static const uint16_t djim_current_cnt_range[DJIMotor_Type_COUNT] =
 
 #define DJIM_REDUCTION_RATIO_M3508  19.0f
 #define DJIM_REDUCTION_RATIO_M2006  36.0f
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //DJI_MOTOR_DEF_H

@@ -1,12 +1,17 @@
-#ifndef Remote_H
-#define Remote_H
+/**
+ * @file    remote.h
+ * @brief   遥控模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 remote 迁移，逻辑不变。remote_frame_t 为协议位域结构体（保持原样），
+ *          字节缓冲强转结构体指针统一改 memcpy（§9）。去掉 extern "C"、改用 #pragma once。
+ */
+#pragma once
 
 #include "bsp_usart.h"
 #include "bsp_tim.h"
+#include <stdint.h>
 
 #define REMOTE_FRAME_LEN 21
 
-extern TIM_HandleTypeDef *remote_handle_tim;
 extern uint8_t remote_data_flag;
 
 #pragma pack(1)
@@ -90,5 +95,3 @@ extern const remote_frame_t * const remote_data;
 
 const remote_frame_t *Remote_Init(UART_HandleTypeDef *huart);
 uint8_t Remote_Online();
-
-#endif

@@ -1,16 +1,15 @@
-#ifndef SHOOT_H
-#define SHOOT_H
+/**
+ * @file    shoot.h
+ * @brief   射击模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 shoot 迁移，逻辑不变。
+ */
+#pragma once
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-typedef struct {
+struct Shoot_Cmd {
     uint8_t enable;
-} Shoot_Cmd;
+};
 
 extern Shoot_Cmd shoot_cmd;
 
@@ -26,9 +25,3 @@ extern Shoot_Cmd shoot_cmd;
 
 void Shoot_Init(void);
 void Shoot_Fire(uint8_t count);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

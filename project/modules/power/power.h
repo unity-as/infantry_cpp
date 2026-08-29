@@ -1,5 +1,9 @@
-#ifndef POWER_H
-#define POWER_H
+/**
+ * @file    power.h
+ * @brief   功率模块（C → C++：无实例，自由函数置于全局命名空间）
+ * @note    从 C 版 power 迁移，逻辑不变。去掉 extern "C"、改用 #pragma once（对齐 crc.h）。
+ */
+#pragma once
 
 #include "adc.h" // 提供 ADC_HandleTypeDef
 
@@ -11,5 +15,3 @@
 
 void Power_Init(ADC_HandleTypeDef *hadc);
 float Power_GetBusVoltage(void);
-
-#endif

@@ -28,7 +28,9 @@
  ******************************************************************************
  */
 
+extern "C" {
 #include "arm_math.h"
+}
 
 #pragma once
 
@@ -178,7 +180,7 @@ class Matrixf
      * @tparam cols2 右侧矩阵的列数
      * @note  返回值类型为 Matrixf<_rows, cols2>
      */
-    template <int cols2>
+    template <uint16_t cols2>
     Matrixf<_rows, cols2> operator*(const Matrixf<_cols, cols2> &mat2) const {
         Matrixf<_rows, cols2> res;
         arm_mat_mult_f32(&arm_mat_, &mat2.arm_mat_, &res.arm_mat_);
@@ -280,7 +282,7 @@ class Matrixf
         static_assert(_rows == _cols, "Matrix must be square to compute inverse");
 
         Matrixf<_cols, _rows> res;
-        arm_status status = arm_mat_inverse_f32(&arm_mat_, &res);
+        arm_status status = arm_mat_inverse_f32(&arm_mat_, &res.arm_mat_);
 
         if (status == ARM_MATH_SINGULAR)
             return Matrixf<_cols, _rows>::zeros();
@@ -331,9 +333,11 @@ class Matrixf
         return res;
     }
 
+    public:
+    arm_matrix_instance_f32 arm_mat_;   // CMSIS-DSP 矩阵实例（包含行数、列数、数据指针）
+
     private:
     static constexpr uint16_t min_dim() { return (_rows < _cols) ? _rows : _cols; }
-    arm_matrix_instance_f32 arm_mat_;   // CMSIS-DSP 矩阵实例（包含行数、列数、数据指针）
 
     protected:
     float data_[_rows * _cols] = {0};         // 矩阵数据（栈上分配）

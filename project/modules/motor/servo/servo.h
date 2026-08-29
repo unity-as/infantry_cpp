@@ -1,26 +1,27 @@
-#ifndef SERVO_H
-#define SERVO_H
+/**
+ * @file    servo.h
+ * @brief   舵机（C → C++）
+ * @note    从 C 版 servo 迁移：struct Servo_Instance → class Servo，
+ *          ServoRegister → init、ServoMove → move，逻辑不变，禁堆。
+ *          原 C 的死注册表与未使用的 min_duty/max_duty 宏一并删除。
+ */
+#pragma once
 
 #include "bsp_pwm.h"
 
-#define SERVO_DEVICE_CNT 2  // 最大支持的舵机实例数量
-#define min_duty  0.025f    // 0.5ms / 20ms
-#define max_duty  0.125f     // 2.5ms / 20ms
+class Servo {
+public:
+    /// 初始化配置
+    struct Config {
+        PWM::Config servo_pwm_config;   // PWM 配置
+        float init_angle;               // 初始角度
+    };
 
-/* 舵机实例结构体 */
-typedef struct 
-{
-    PWM_Instance *servo_pwm;           // PWM实例
-} Servo_Instance;
+    void init(const Config& config);    // 替代 ServoRegister
+    void move(float angle);             // 替代 ServoMove
 
-/* 舵机初始化配置 */
-typedef struct 
-{
-    PWM_Init_Config_s servo_pwm_config;   // PWM配置
-    float init_angle;               // 初始角度
-} Servo_Init_Config_s;
+private:
+    static float angleToDuty(float angle);  // 替代 AngleToDuty
 
-Servo_Instance *ServoRegister(Servo_Init_Config_s *config);
-void ServoMove(Servo_Instance *servo, float angle);
-
-#endif // BSP_SERVO_H
+    PWM servo_pwm_;                     // PWM 实例
+};

@@ -3,6 +3,11 @@
 
 #include "stdint.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 /*============================================
  * 帧格式定义
  * SOF(1) + data_length(2) + seq(1) + CRC8(1) + cmd_id(2) + data(n) + CRC16(2)
@@ -275,5 +280,10 @@ typedef enum {
     UI_Delete_Layer = 1,
     UI_Delete_All = 2,
 } UI_Delete_Operate_e;
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // REFEREE_PROTOCOL_H

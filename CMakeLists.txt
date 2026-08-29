@@ -12,6 +12,8 @@ set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+
+
 set(SIZE arm-none-eabi-size)
 
 # 定义构建类型

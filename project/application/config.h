@@ -10,6 +10,11 @@
 // modules
 #include "daemon.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 // ======= 机器人参数 =======
 
 // 云台电机初始位置 — 编码器值
@@ -18,5 +23,10 @@
 
 // ECD → 角度换算（8192 = 一圈）
 #define GIMBAL_ECD_TO_DEG(ecd)  ((float)(ecd) / 8192.0f * 360.0f)
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

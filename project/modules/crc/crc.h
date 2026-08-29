@@ -1,5 +1,9 @@
-#ifndef CRC_H
-#define CRC_H
+/**
+ * @file    crc.h
+ * @brief   CRC 校验模块（C → C++：无实例结构体，自由函数置于全局命名空间）
+ * @note    原 C 版逻辑不变；去掉 extern "C"、改用 #pragma once。
+ */
+#pragma once
 
 #include <stdint.h>
 
@@ -25,11 +29,9 @@
 #define CRC16_INIT      0xFFFF
 
 // CRC-8
-uint8_t CRC8_Calculate(const uint8_t *data, uint16_t len);
-uint8_t CRC8_Verify(const uint8_t *data, uint16_t len);
+uint8_t CRC8_Calculate(const uint8_t* data, uint16_t len);
+uint8_t CRC8_Verify(const uint8_t* data, uint16_t len);
 
 // CRC-16
-uint16_t CRC16_Calculate(const uint8_t *data, uint16_t len);
-uint8_t  CRC16_Verify(const uint8_t *data, uint16_t len);
-
-#endif
+uint16_t CRC16_Calculate(const uint8_t* data, uint16_t len);
+uint8_t  CRC16_Verify(const uint8_t* data, uint16_t len);

@@ -3,6 +3,7 @@
 
 #ifdef __IAR_SYSTEMS_ICC__
   #include <intrinsics.h>
+
 #endif
 
 #ifndef   SEGGER_RTT_MAX_NUM_UP_BUFFERS
@@ -143,5 +144,6 @@
 #ifndef   SEGGER_RTT_UNLOCK
   #define SEGGER_RTT_UNLOCK()
 #endif
+
 
 #endif
