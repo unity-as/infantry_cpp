@@ -90,7 +90,7 @@ void Cmd_Remote(void)
 {
     // 云台
     static uint8_t last_aim = 0;
-    uint8_t lose = Minipc_GetData()->pitch == 0 && Minipc_GetData()->yaw == 0;
+    // uint8_t lose = Minipc_GetData()->pitch == 0 && Minipc_GetData()->yaw == 0;
 
     uint8_t aim = REMOTE_RC_FN_RIGHT() && Minipc_Online();
     if (aim) {
@@ -128,7 +128,7 @@ void Cmd_Mouse(void)
 {
     // 云台
     static uint8_t last_aim_m = 0;
-    uint8_t lose = Minipc_GetData()->pitch == 0 && Minipc_GetData()->yaw == 0;
+    // uint8_t lose = Minipc_GetData()->pitch == 0 && Minipc_GetData()->yaw == 0;
     uint8_t aim_m = REMOTE_MOUSE_RIGHT_PRESSED() && Minipc_Online();
 
     if (aim_m) {
