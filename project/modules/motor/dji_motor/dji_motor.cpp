@@ -134,6 +134,11 @@ void DJIMotor::loseCallback(void* device)
     CAN_HandleTypeDef* channel = instance->djim_can_.can_handle_;
     DJIMotor_Type type = instance->motor_type_;
     uint8_t id = instance->motor_id_;
+
+    // 隐藏 unused variable警告
+    (void)channel;
+    (void)type;
+    (void)id;
 }
 
 void DJIMotor::timCallback(void* device)
