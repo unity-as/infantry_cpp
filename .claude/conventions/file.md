@@ -15,7 +15,8 @@ infantry_cpp/
 │   ├── conventions/         # 本项目规则 + 事实
 │   │   ├── api.md           # API 风格（全局对象 + Config + init）
 │   │   ├── file.md          # 本文件（分层 + 文件结构）
-│   │   └── hardware.md      # 硬件事实（电机表 + 外设分配）
+│   │   ├── hardware.md      # 硬件事实（电机表 + 外设分配）
+│   │   └── docs.md          # 文档放哪 / 何时改 / impl 五件套
 │   ├── docs/                # impl/ 实现；cpp/ 规范；guide/ 启动；deprecated/；plan.md
 │   ├── records/             # todo/current+backlog；history/
 │   ├── reference/           # 外部资料（手册 / 协议 / 规则）
@@ -112,6 +113,7 @@ project/application/
    - modules 可 include bsp  
    - application 可 include bsp 与 modules  
 5. **API 风格**：新建 bsp/modules 遵循 `api.md`（class + `Config` + `init`，禁堆）
+6. **文档**：已落地模块考虑 `docs/impl/<模块>/` 五件套；未落地放 `plans/`。见 `docs.md`
 
 ## 外设分配与硬件
 

@@ -10,6 +10,21 @@
 - **验证结果**：（效果如何/是否通过）
 - **待办**：（如果有未完成事项，写在这里）
 
+## 2026-09-01
+
+### 文档管理收口进 conventions
+
+- **任务**：文档目录拆成 impl 五件套 / cpp 共用规范 / guide 启动 / plans 未落地 / todo+history；规则写入 `conventions/docs.md`，本阶段收口。
+- **原因**：原先 `docs/`、`records/` 职责混在一起，AI 会把未落地方案当现状、把规范当「只给人读」；规则只写在索引里容易漏。
+- **变更文件**：
+  - 新建 `.claude/conventions/docs.md`（放哪、何时改、五件套、铁律）
+  - `.claude/CLAUDE.md`、`conventions/file.md`：导航 + 事件表指向 `docs.md`
+  - `.claude/docs/`：`impl/`、`cpp/`、`guide/startup/`、`deprecated/`、`plan.md`
+  - `.claude/records/todo/`、`records/history/`
+  - 未落地方案进 `.claude/plans/`
+- **验证结果**：目录与索引对齐；底盘五件套已拆，云台/aim 等尚未拆完
+- **待办**：gimbal/aim/ahrs/feedforward 五件套未齐；`architecture.md` 仍有 C 旧稿；`guide/startup/production.md` 未写。这些不挡文档管理收口。
+
 ## 2026-07-25
 
 ### .claude 目录整理

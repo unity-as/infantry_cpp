@@ -8,7 +8,7 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 
 | 目录 | 用途 |
 |------|------|
-| `conventions/` | 本项目规则 + 事实：`api.md`（全局对象 + Config + init）、`file.md`（分层 + 文件结构）、`hardware.md`（电机表 + 外设分配） |
+| `conventions/` | 本项目规则 + 事实：`api.md`、`file.md`、`hardware.md`、`docs.md`（文档放哪 / 何时改） |
 | `docs/` | `impl/` 实现路径；`cpp/` 规范（人机共用）；`guide/` 启动等；`deprecated/` 废案；索引 `plan.md` |
 | `records/` | `todo/current.md` + `backlog.md`；`history/history.md` |
 | `reference/` | 外部资料（官方手册 / 协议 / 术语 / 规则）：`hardware/` 手册、`rules/` 规则 |
@@ -20,7 +20,7 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 
 ### 未经用户允许禁止更改（用户维护）
 - `Core/Src/main.c`
-- `.claude/conventions/`（api.md / file.md / hardware.md）
+- `.claude/conventions/`（api.md / file.md / hardware.md / docs.md）
 - `.claude/skills/`
 - `CMakeLists.txt`
 
@@ -42,6 +42,7 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 | 换电机 / 改外设分配 / 查硬件事实 | `.claude/conventions/hardware.md` |
 | 查官方手册 / 协议 / 规则 | `.claude/reference/` |
 | 查未落地方案 / AI 作业单 | `.claude/plans/` |
+| 文档放哪 / 模块文档怎么写 / 方案进 plans 还是 impl | `.claude/conventions/docs.md` |
 | 理解某模块当前实现路径 | `.claude/docs/impl/`（优先 `<模块>/` 五件套） |
 | C++ 怎么写 / 迁移顺序 | `.claude/docs/cpp/` |
 | 编译烧录怎么点 | `.claude/docs/guide/startup/` |
