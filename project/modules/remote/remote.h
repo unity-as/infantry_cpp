@@ -16,7 +16,7 @@ extern uint8_t remote_data_flag;
 
 #pragma pack(1)
 
-typedef __packed struct {
+typedef struct {
     uint8_t  sof_1;
     uint8_t  sof_2;
     uint64_t ch_0      : 11;
@@ -40,6 +40,8 @@ typedef __packed struct {
 } remote_frame_t;
 
 #pragma pack()
+
+static_assert(sizeof(remote_frame_t) == REMOTE_FRAME_LEN, "remote_frame_t size mismatch");
 
 extern const remote_frame_t * const remote_data;
 
