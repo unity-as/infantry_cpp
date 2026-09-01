@@ -1,196 +1,238 @@
 # api.md - 框架 API 风格
 
-## 核心模式：注册制 + 回调
+> 编码细则（命名、禁堆、白/黑名单特性、协议解析等）见 `.claude/docs/cpp_conventions.md`。  
+> 本文只描述**模块怎么声明、初始化、调用**，与当前 C++ 实码对齐。
 
-所有模块统一遵循：
+## 核心模式：全局对象 + Config + init
+
+C 时代的「Register + 实例指针 + malloc」已废弃。统一为：
 
 ```
-Xxx_Init_Config_s 配置结构体 → Xxx_Register() → 返回 Xxx_Instance* → 后续通过指针操作
+全局/静态 Xxx 对象 → Xxx::Config → obj.init(config) → 成员函数操作
 ```
 
-## 命名规范
+```cpp
+// ① 全局声明（构造只做零初始化，禁止碰外设）
+DJIMotor motor;
 
-| 类型 | 命名 | 示例 |
+// ② 外设初始化延迟到 init（HAL 已就绪之后）
+DJIMotor::Config config = { .can_handle = &hcan1, .motor_id = 1, ... };
+motor.init(config);
+
+// ③ 成员函数操作（无实例指针参数）
+motor.setVelocity(1000.0f);
+```
+
+**铁律（摘要）**
+
+| 约束 | 说明 |
+|------|------|
+| 禁堆 | 禁止 `malloc/free/new/delete`；长生命周期对象用全局/静态 |
+| 构造禁外设 | 全局构造在 `main()` 前执行，外设注册一律放 `init()` |
+| 禁 `std::function` | 回调用函数指针 + `void* device`，经 `setCallback` 设置 |
+| 不用命名空间 | 类名大驼峰消歧义 |
+
+## 命名对照
+
+| 类型 | 规则 | 示例 |
 |------|------|------|
-| 实例结构体 | `Xxx_Instance` | `CAN_Instance`, `USART_Instance`, `DJIMotor_Instance` |
-| 初始化配置 | `Xxx_Init_Config_s` | `CAN_Init_Config_s`, `USART_Init_Config_s` |
-| 注册函数 | `Xxx_Register()` 或 `Xxx_Init()` | `CANRegister()`, `USART_Register()`, `DJIMotor_Register()` |
-| 回调函数 | `void (*xxx_callback)(void*)` | `can_module_callback`, `tim_callback` |
-| 上下文指针 | `void *device` | 指向拥有此外设的上层模块实例 |
+| 类 | 大驼峰；缩写全大写 | `CAN`, `USART`, `DJIMotor`, `Daemon` |
+| 配置 | 类内嵌套 `Config` | `CAN::Config`, `DJIMotor::Config` |
+| 成员函数 | 小驼峰 | `init()`, `transmit()`, `setVelocity()` |
+| 成员变量 | 小写+下划线，**结尾下划线** | `angle_`, `online_` |
+| 回调类型 | `using Callback = void (*)(...)` | `CAN::Callback` |
+| 上下文 | `void* device` | 指向拥有此外设的上层实例 |
+
+### C → C++ 映射（查阅旧文档时）
+
+| C 原版 | C++ 现版 |
+|--------|----------|
+| `Xxx_Instance` / `Xxx_Init_Config_s` | `class Xxx` / `Xxx::Config` |
+| `Xxx_Register(&config)`（malloc） | 全局 `Xxx obj;` + `obj.init(config)` |
+| `Xxx_Set_Foo(inst, v)` | `obj.setFoo(v)` |
+| `inst->field` | `obj.field_`（跨模块可读的状态保持 public） |
 
 ## BSP 层 API
 
-### CAN (bsp_can)
+### CAN (`bsp_can`)
 
-```c
-// 注册
-CAN_Init_Config_s config = {
+```cpp
+CAN can;   // 全局或作为上层成员
+
+CAN::Config config = {
     .can_handle = &hcan1,
-    .rx_id = 0x201,
-    .can_module_callback = my_callback,  // void(*)(void*)
-    .device = my_module_instance,        // 上下文
+    .rx_id = 0x201,          // 0 表示 TX 组
 };
-CAN_Instance *can = CANRegister(&config);
+can.init(config);
+can.setCallback(my_callback, my_module);  // void (*)(void*)
 
-// 发送
-CANTransmit(can, 1.0f);  // timeout 秒
-
-// 接收：中断自动路由到 my_callback(can->device)
+can.transmit(1.0f);   // timeout 秒；载荷写 can.tx_buff_
+// 接收：中断路由到 my_callback(device)
 ```
 
-### USART (bsp_usart)
+### USART (`bsp_usart`)
 
-```c
-// 注册
-USART_Init_Config_s config = {
+```cpp
+USART usart;
+
+USART::Config config = {
     .usart_handle = &huart1,
-    .module_callback = my_callback,  // void(*)(void*, uint8_t len)
-    .device = my_module_instance,
 };
-USART_Instance *usart = USART_Register(&config);
+usart.init(config);
+usart.setCallback(my_callback, my_module);  // void (*)(void*, uint8_t len)
 
-// 发送
-USARTSend(usart, data, len);  // DMA 发送
-
-// 接收：DMA+空闲中断自动路由到 my_callback(device, size)
+usart.send(data, len);
+// 接收：DMA+空闲中断 → my_callback(device, size)；数据在 usart.recv_buff_
 ```
 
-### TIM (bsp_tim)
+### TIM (`bsp_tim`)
 
-```c
-// 注册
-TIM_Init_Config_s config = {
+```cpp
+TIM tim;
+
+TIM::Config config = {
     .htim = &htim7,
-    .tim_callback = my_callback,  // void(*)(void*)
-    .device = my_module_instance,
 };
-TIM_Instance *tim = TIM_Register(&config);
-
-// 启动
-TIM_Start_IT(tim);
-
-// 接收：定时器中断自动路由到 my_callback(device)
+tim.init(config);
+tim.setCallback(my_callback, my_module);  // void (*)(void*)
+tim.startIT();
+// 周期中断 → my_callback(device)
 ```
 
-### SPI (bsp_spi)
+### SPI (`bsp_spi`)
 
-```c
-// 注册
-SPI_Init_Config_s config = {
-    .spi_handle = &hspi1,
-    .GPIOx = GPIOA, .cs_pin = GPIO_PIN_4,
-    .spi_work_mode = SPI_BLOCK_MODE,
-    .callback = my_callback,
-    .device = my_module_instance,
+```cpp
+SPI spi;
+
+SPI::Config config = {
+    .hspi = &hspi1,
+    .cs_port = GPIOA,
+    .cs_pin = GPIO_PIN_4,
 };
-SPIInstance *spi = SPIRegister(&config);
-
-// 收发
-SPITransRecv(spi, rx_buf, tx_buf, len);  // 阻塞
+spi.init(config);
+spi.transfer(tx_buf, rx_buf, len);  // 软件片选 + 轮询
 ```
 
 ## Modules 层 API
 
-### DJI Motor (modules/motor/dji_motor)
+### DJI Motor (`modules/motor/dji_motor`)
 
-```c
-// 注册（内部创建 CAN 实例 + daemon + PID）
-DJIMotor_Init_Config_s config = {
+```cpp
+DJIMotor motor;
+
+DJIMotor::Config config = {
     .can_handle = &hcan1,
     .motor_id = 1,
     .motor_type = DJIMotor_3508,
-    .pid_velocity = {.kp=20, .ki=1, .kd=0, ...},
-    .pid_angle = {.kp=5, ...},       // 可选
-    .pos_freq_div = 3,                // 位置环分频
+    .pid_velocity = { .kp = 20, .ki = 1, .kd = 0, ... },
+    .pid_angle = { .kp = 5, ... },
+    .pos_freq_div = 3,
 };
-DJIMotor_Instance *motor = DJIMotor_Register(&config);
+motor.init(config);   // 内部注册 CAN + daemon + PID
 
-// 控制
-DJIMotor_Set_Angle(motor, 90.0f);         // 位置控制（最短路径）
-DJIMotor_Set_Angle_Circular(motor, 720);  // 多圈连续
-DJIMotor_Set_Angle_Increment(motor, 45);  // 增量
-DJIMotor_Set_Velocity(motor, 1000.0f);    // 速度控制
-DJIMotor_Set_Current(motor, 2.5f);        // 开环电流
+motor.setAngle(90.0f);
+motor.setAngleCircular(720.0f);
+motor.setAngleIncrement(45.0f);
+motor.setVelocity(1000.0f);
+motor.setCurrent(2.5f);
+motor.setVelocityFF(vel_ff);
+motor.setCurrentFF(curr_ff);
+motor.setEnable(1);
 
-// 前馈
-DJIMotor_Set_VelocityFF(motor, vel_ff);
-DJIMotor_Set_CurrentFF(motor, curr_ff);
+// 跨模块直接读公开状态
+float a = motor.angle_;
+uint8_t ok = motor.motor_valid_;
 
-// 使能/禁用
-DJIMotor_Set_Enable(motor, 1);
+// 电机控制时基（全局一次）
+DJIMotor::timbaseSelect(&htim5);
 ```
 
-### Remote Control (modules/remote_control)
+### Remote (`modules/remote`)
 
-```c
-// 初始化（内部创建 USART 实例 + daemon）
-RC_Data *rc = RC_Init(&huart3);
+无实例类：自由函数 + 全局帧指针（与 C 版数据流对齐）。
 
-// 读取
-if (RC_Online()) {
-    rc->rocker.right_x;  // 摇杆值
-    rc->sw.a;            // 开关值
+```cpp
+const remote_frame_t* rc = Remote_Init(&huart3);
+
+if (Remote_Online()) {
+    int16_t rh = REMOTE_RC_RH();     // 右摇杆水平 ±660
+    uint8_t sw = REMOTE_RC_SWITCH(); // 0=C, 1=N, 2=S
+    // 或直接读 remote_data->...
 }
 ```
 
-### Serial (modules/serial)
+### Serial (`modules/serial`)
 
-```c
-// 注册（内部创建 USART 实例 + daemon）
-Serial_Init_Config_s config = {
+```cpp
+Serial serial;
+
+Serial::Config config = {
     .usart_handle = &huart6,
-    .rx_callback = my_parse_function,  // void(*)(uint8_t *data, uint8_t len)
+    .htim = &htim7,              // 缓冲满看门狗时基（1ms）
+    .rx_callback = my_parse,     // void (*)(uint16_t len)
 };
-Serial_Instance *serial = Serial_Register(&config);
+serial.init(config);
 
-// 发送
-Serial_Send(serial, data, len);
-
-// 接收：自动解析不定长数据，回调通知
+serial.send(data, len);
+// 接收完成 → my_parse(len)；数据在 serial.recv_buf_
 ```
 
-### Daemon (modules/daemon)
+### Daemon (`modules/daemon`)
 
-```c
-// 注册
-Daemon_Init_Config_s config = {
-    .cycle = 100,                      // 超时 ms
-    .device = my_instance,
-    .daemon_callback = my_offline_handler,  // void(*)(void*)
+```cpp
+Daemon daemon;
+
+Daemon::Config config = {
+    .tim_config = { .htim = &htim7 },
+    .cycle = 100,                         // 超时周期数（与定时器周期一致）
+    .daemon_callback = my_offline,        // void (*)(void*)
+    .device = my_module,
 };
-Daemon_Instance *daemon = Daemon_Register(&config);
+daemon.init(config);
 
-// 喂狗（收到数据时调用）
-Daemon_Reset(daemon);
-
-// 离线状态
-daemon->online;  // 0=离线, 1=在线
+daemon.reset();           // 收到数据时喂狗
+uint8_t on = daemon.online_;  // 0=离线, 1=在线
 ```
 
-## 调用模块时的步骤
+## Application 层（过渡形态）
 
-### 新建模块
+应用层多数仍是 **自由函数 + 全局结构体/对象**（逻辑未改，未强制改成 class）：
 
-1. 在 `project/modules/xxx/` 创建 `xxx.h` + `xxx.c`
-2. 定义 `Xxx_Instance` 结构体（包含需要的 BSP Instance 指针）
-3. 定义 `Xxx_Init_Config_s` 结构体
-4. 实现 `Xxx_Register()` 函数（malloc + memset + 注册 BSP 实例 + 注册 daemon）
-5. 在 CMakeLists.txt 中无需修改（auto-scan 自动发现）
+| 模块 | 入口 | 指令交接 |
+|------|------|----------|
+| `robot` | `Robot_Init()` / `Robot_Task()` | `Robot_Task` 只调 `Cmd_Task()` |
+| `cmd` | `Cmd_Init()` / `Cmd_Task()` | 写 `chassis_cmd` / `gimbal_cmd` 等 |
+| `chassis` | `Chassis_Init()` | 读 `chassis_cmd`，独立 RTOS Task |
+| `gimbal` | `Gimbal_Init()` | 读 `gimbal_cmd`，独立 RTOS Task |
+| `shoot` | `Shoot_Init()` | 独立 RTOS Task |
+
+子系统内部核心（如 `ChassisMotion`、`Gimbal` core）已是 class；对外仍用 `Xxx_Init` 包装。新建应用逻辑时优先跟同目录现有风格，勿混入第二套约定。
+
+## 调用与新建模块
 
 ### 调用已有模块
 
-1. 在 `#include` 中包含模块头文件
-2. 在 Init 函数中创建 `Xxx_Init_Config_s` 并调用 `Xxx_Register()`
-3. 保存返回的 `Xxx_Instance*` 指针
-4. 在 Task 中通过指针调用模块 API
+1. `#include` 模块头文件  
+2. 声明全局/静态对象（或使用模块已导出的全局对象）  
+3. 在上层 `Init` 里填 `Config` 并 `init()`  
+4. Task / 中断回调里通过成员函数或公开字段操作  
 
-## 回调函数签名
+### 新建模块（bsp / modules）
 
-| BSP | 回调签名 | 触发时机 |
-|-----|---------|---------|
-| CAN | `void (*)(void* device)` | CAN 接收到匹配 ID 的数据帧 |
-| USART | `void (*)(void* device, uint8_t len)` | UART 接收到数据（空闲中断或全满中断） |
-| TIM | `void (*)(void* device)` | 定时器溢出中断 |
-| SPI | `void (*)(SPIInstance* spi)` | SPI 传输完成 |
+1. 在 `project/bsp|modules/xxx/` 建 `xxx.h` + `xxx.cpp`（纯模板才用 `.hpp`）  
+2. 定义 `class Xxx` + 嵌套 `Config`  
+3. 实现 `init(const Config&)`：注册所需 BSP / daemon，**禁止堆分配**  
+4. 回调函数指针私有，对外 `setCallback`（若需要）  
+5. CMakeLists 无需改（auto-scan `project/`）  
+6. **同步更新** `file.md` 目录树  
 
-所有回调的 `device` 参数 = 注册时传入的 `config.device`，用于区分同一外设上的不同模块。
+## 回调签名
+
+| BSP | 签名 | 触发时机 |
+|-----|------|----------|
+| CAN | `void (*)(void* device)` | 收到匹配 ID 的帧 |
+| USART | `void (*)(void* device, uint8_t len)` | 空闲/收完 |
+| TIM | `void (*)(void* device)` | 周期溢出 |
+| SPI | （当前为轮询 `transfer`，无完成回调） | — |
+
+`device` = `setCallback` / `Config` 里传入的上下文，用于区分同一外设上的不同上层实例。

@@ -8,7 +8,7 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 
 | 目录 | 用途 |
 |------|------|
-| `conventions/` | 本项目规则 + 事实：`api.md`（Register/Instance 风格）、`file.md`（分层 + 文件结构）、`hardware.md`（电机表 + 外设分配） |
+| `conventions/` | 本项目规则 + 事实：`api.md`（全局对象 + Config + init）、`file.md`（分层 + 文件结构）、`hardware.md`（电机表 + 外设分配） |
 | `docs/` | 设计文档 / 决定 / 结论（代码逻辑、数据流、调参、方案）：`architecture.md`、`aim.md`、`gimbal.md` 等 |
 | `records/` | 项目进度 + 历史：`status.md`（当前状态 + 待办）、`history.md`（阶段 changelog） |
 | `reference/` | 外部资料（官方手册 / 协议 / 术语 / 规则）：`hardware/` 手册、`rules/` 规则 |
