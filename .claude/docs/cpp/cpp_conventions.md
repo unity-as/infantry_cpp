@@ -1,7 +1,6 @@
 # C++ 编程规范（C → C++ 迁移）
 
-> 本文档面向**人**，讲解步兵机器人电控代码从 C 迁移到 C++ 时的编程规范：每条规则的**内容、原因、示例**。
-> AI 执行迁移的内部版本在 `.claude/plans/cpp_plans/cpp_conventions.md`，两份内容一致，本份重在讲清"为什么"。
+> 人机共用：写代码时查这份（规则 + 理由）。逐步照做的清单仍在 `.claude/plans/cpp_plans/cpp_conventions.md`，两边规则应一致。
 
 ## 前言
 

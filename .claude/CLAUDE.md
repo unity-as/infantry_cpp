@@ -9,8 +9,8 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 | 目录 | 用途 |
 |------|------|
 | `conventions/` | 本项目规则 + 事实：`api.md`（全局对象 + Config + init）、`file.md`（分层 + 文件结构）、`hardware.md`（电机表 + 外设分配） |
-| `docs/` | `impl/` 当前实现路径（给 AI）；`guide/` 给人深入了解；总索引 `plan.md` |
-| `records/` | `todo/status.md` 待办；`history/history.md` 阶段 changelog |
+| `docs/` | `impl/` 实现路径；`cpp/` 规范（人机共用）；`guide/` 启动等；`deprecated/` 废案；索引 `plan.md` |
+| `records/` | `todo/current.md` + `backlog.md`；`history/history.md` |
 | `reference/` | 外部资料（官方手册 / 协议 / 术语 / 规则）：`hardware/` 手册、`rules/` 规则 |
 | `plans/` | 未落地方案 + AI 计划（`cpp_plans/`、`msg_bus.md` 等） |
 | `tools/` | 技能自带的工具 / 脚本 |
@@ -42,11 +42,12 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 | 换电机 / 改外设分配 / 查硬件事实 | `.claude/conventions/hardware.md` |
 | 查官方手册 / 协议 / 规则 | `.claude/reference/` |
 | 查未落地方案 / AI 作业单 | `.claude/plans/` |
-| 理解某模块当前实现路径 | `.claude/docs/impl/` |
-| 给人读的设计/规范说明 | `.claude/docs/guide/` |
-| 了解项目进度 / 待办 | `.claude/records/todo/status.md` |
+| 理解某模块当前实现路径 | `.claude/docs/impl/`（优先 `<模块>/` 五件套） |
+| C++ 怎么写 / 迁移顺序 | `.claude/docs/cpp/` |
+| 编译烧录怎么点 | `.claude/docs/guide/startup/` |
+| 了解项目进度 / 待办 | `.claude/records/todo/current.md` |
 | 文件发生变动（新增/删除/移动） | **立即更新 `.claude/conventions/file.md` 文件结构** |
-| 完成一个阶段 | **更新 `.claude/records/todo/status.md` + 按格式追加 `.claude/records/history/history.md`** |
+| 完成一个阶段 | **更新 `records/todo/current.md`（及 backlog）+ 按格式追加 `records/history/history.md`** |
 
 ## 技能
 

@@ -2,7 +2,7 @@
 
 > 本文档给 **AI** 看，是「怎么把每个模块从 C 迁到 C++」的操作手册 + 优先级。
 > 命名、类设计、内存、错误、协议等**规则**见 `cpp_conventions.md`，本文档只讲**执行步骤**和**顺序**。
-> 给人看的版本见 `docs/guide/cpp_refactor.md`。
+> 给人看的版本见 `docs/cpp/cpp_refactor.md`。
 
 ## 0. 总则
 

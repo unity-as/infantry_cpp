@@ -16,8 +16,8 @@ infantry_cpp/
 │   │   ├── api.md           # API 风格（全局对象 + Config + init）
 │   │   ├── file.md          # 本文件（分层 + 文件结构）
 │   │   └── hardware.md      # 硬件事实（电机表 + 外设分配）
-│   ├── docs/                # impl/ 当前实现（AI）；guide/ 人读；plan.md 索引
-│   ├── records/             # todo/status.md；history/history.md
+│   ├── docs/                # impl/ 实现；cpp/ 规范；guide/ 启动；deprecated/；plan.md
+│   ├── records/             # todo/current+backlog；history/
 │   ├── reference/           # 外部资料（手册 / 协议 / 规则）
 │   ├── plans/               # 未落地方案 + cpp_plans/
 │   ├── tools/               # 技能自带工具 / 脚本
@@ -31,7 +31,7 @@ infantry_cpp/
     └── simulation/          # 仿真模型（预留）
 ```
 
-源文件约定：实现用 `.cpp` / 头文件 `.h`；**仅纯模板 header-only** 用 `.hpp`（如 `matrix.hpp`）。细则见 `.claude/docs/guide/cpp_conventions.md`。
+源文件约定：实现用 `.cpp` / 头文件 `.h`；**仅纯模板 header-only** 用 `.hpp`（如 `matrix.hpp`）。细则见 `.claude/docs/cpp/cpp_conventions.md`。
 
 ## 三层职责
 

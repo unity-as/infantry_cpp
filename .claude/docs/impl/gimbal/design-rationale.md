@@ -1,5 +1,8 @@
 # gimbal pitch 速度环调参记录
 
+> 五件套其它篇见同目录。本文是调参结论，不是完整设计。
+
+
 infantry_main 云台 pitch 速度环（GM6020 电压控制，反馈用 AHRS 陀螺 pitch 角速度）震荡问题的调参结论。
 
 ## 最终有效参数（用户确认，见 `gimbal.c` 的 `pid_pitch_vel`）

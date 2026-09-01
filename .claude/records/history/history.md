@@ -145,3 +145,14 @@
   - `CLAUDE.md`：技能列表 6 → 4
 - **验证结果**：4 个技能各就位，frontmatter name 正确，除本记录外无 application-modify/optimize-code 残留引用
 - **待办**：无（user-interview 保留未删）
+
+## 2026-09-01
+
+### 文档管理细分
+
+- **任务**：docs 拆 impl 五件套（底盘样板）+ cpp 人机共用规范 + guide/startup；records/todo 拆 current/backlog；未落地方案在 plans；废案栏 deprecated
+- **原因**：平铺 docs 分不清当前实现、规范、未做方案和待办优先级
+- **变更文件**：`.claude/docs/`、`records/todo/`、`CLAUDE.md`、`conventions/file.md`、`api.md` 路径
+- **验证结果**：索引 `docs/plan.md` 已更新；底盘五件套已建，云台仅 overview/调参
+- **待办**：architecture.md 仍偏 C；aim/ahrs/feedforward 未拆五件套；production.md 未写
+

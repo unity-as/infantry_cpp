@@ -1,3 +1,8 @@
+# 底盘：运动学与设计取舍
+
+> 当前 C++ 接口见 [interface.md](interface.md)，数据流见 [data-flow.md](data-flow.md)。  
+> 下文「模块化设计」里的 `Register` / `malloc` / `chassis.c` 是 **C 版历史**，不要当现码。
+
 # O 型麦轮运动学
 
 ## 坐标系定义

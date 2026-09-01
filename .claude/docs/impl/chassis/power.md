@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-17
 > 覆盖范围：底盘控制架构重构（运动学 / 电机反馈链路 / 功率控制 三模块拆分）+ 二值动态限功率
-> 关联：[chassis.md](chassis.md)（运动学）、[chassis_control.md](chassis_control.md)（控制策略）
+> 关联：[design-rationale.md](design-rationale.md)（运动学）、[data-flow.md](data-flow.md) / [pipeline.md](pipeline.md)（现码路径）
 
 ## 一、动机
 

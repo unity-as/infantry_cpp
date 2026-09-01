@@ -1,6 +1,6 @@
 # api.md - 框架 API 风格
 
-> 编码细则（命名、禁堆、白/黑名单特性、协议解析等）见 `.claude/docs/guide/cpp_conventions.md`。  
+> 编码细则（命名、禁堆、白/黑名单特性、协议解析等）见 `.claude/docs/cpp/cpp_conventions.md`。  
 > 本文只描述**模块怎么声明、初始化、调用**，与当前 C++ 实码对齐。
 
 ## 核心模式：全局对象 + Config + init
