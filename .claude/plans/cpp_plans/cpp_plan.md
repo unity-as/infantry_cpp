@@ -37,8 +37,8 @@
 > Martix 写好了，按命名规范改改就行
 > 成员枚举，成员结构体，用Config、Feature这种写法。Config 命名在每个实例属性的类内部都要存在
 
-#### 完成后，在docs创建文档，同时根据此文档报告规范的内容
-- 在docs创建文档，报告规范的内容
+#### 完成后，在 docs/guide 创建文档，同时根据此文档报告规范的内容
+- 在 `docs/guide/` 创建文档，报告规范的内容
 - 这个文档是给人看的
 - 用户可以基于此文档，了解C++编程规范
 
@@ -52,8 +52,8 @@
 > C 里做为一个**实例**或者**对象**的 struct 转为 class 类型，并选择性开放成员和成员函数，例如：DJIMotor_Instance（struct） 转 DJIMotor（class），Serial_Instance （struct）转 Serial（class）。
 > 回调函数写在class成员内部，保持 C 原版的**函数指针 + void* device** 显式传实例（tim_callback(void* device) 原样保留），不用 std::function。对于存在业务逻辑的，自行设计业务逻辑参数。
 
-#### 完成后，在docs创建临时文档，同时根据此文档报告规范的内容
-- 在docs创建临时文档，报告计划的内容
+#### 完成后，在 docs/guide 创建临时文档，同时根据此文档报告规范的内容
+- 在 `docs/guide/` 创建临时文档，报告计划的内容
 - 这个文档是给人看的
 - 用户可以基于此文档，了解重构计划，当然也可能不看，故称为 **临时文档**
 

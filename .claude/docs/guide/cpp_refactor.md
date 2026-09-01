@@ -1,7 +1,7 @@
 # C++ 重构计划（给人看）
 
 > 本文档是 `cpp_refactor.md`（AI 版）的**人读版**，讲清「迁移怎么执行、按什么顺序」。可看可不看，故为**临时文档**。
-> 具体 C++ 编码规则见 `docs/cpp_conventions.md`。
+> 具体 C++ 编码规则见同目录 `cpp_conventions.md`。
 
 ## 目标与铁律
 
