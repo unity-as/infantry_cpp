@@ -10,8 +10,6 @@
 #include "pid.h"
 #include "cmsis_os2.h"
 
-#define GIMBAL_PITCH_CURRENT_FF  -0.150f
-
 Gimbal_Cmd gimbal_cmd;
 static Gimbal gc;
 static PID aim_pid_yaw;

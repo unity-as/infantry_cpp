@@ -18,8 +18,11 @@ extern "C" {
 // ======= 机器人参数 =======
 
 // 云台电机初始位置 — 编码器值
-#define GIMBAL_YAW_ECD      5300
+#define GIMBAL_YAW_ECD      6666
 #define GIMBAL_PITCH_ECD    2710
+
+// 云台重力补偿torque
+#define GIMBAL_PITCH_CURRENT_FF  -0.150f
 
 // ECD → 角度换算（8192 = 一圈）
 #define GIMBAL_ECD_TO_DEG(ecd)  ((float)(ecd) / 8192.0f * 360.0f)
