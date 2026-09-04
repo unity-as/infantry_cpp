@@ -1,6 +1,7 @@
 #ifndef BSP_LOG_PORT_H
 #define BSP_LOG_PORT_H
 
+#include "stm32f4xx_hal.h"
 #include <stdint.h>
 
 #ifdef __cplusplus
