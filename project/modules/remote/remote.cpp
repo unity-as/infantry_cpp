@@ -12,7 +12,7 @@
 
 static Serial remote_serial;
 static Daemon remote_daemon;
-static remote_frame_t remote_frame;
+static remote_frame_t remote_frame;// 遥控数据缓冲区
 
 uint8_t remote_data_flag;
 extern const remote_frame_t * const remote_data = &remote_frame;
