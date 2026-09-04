@@ -15,6 +15,16 @@ bsp_usart (BSP 层)
 daemon    (模块层，缓冲区满超时检测)
 ```
 
+## Circular 与重启接收
+
+选用 **DMA Circular** 后，写指针在环缓冲内连续前进，写满绕回头部继续写，**无需每次把指针重置到缓冲区头**，少一次拆/建 DMA，效率更高；本模块把 Idle 回调里的 `Size` 当作环内写位置（`recv_pos`），用 `last_pos` 做差或跨尾拼接。
+
+**为何还要重启接收（`USART::serviceInit` / `ReceiveToIdle`）：**
+
+- Idle 事件表示「这一小段收完了」；要继续用 ToIdle 方式盯下一帧，BSP 侧会再调一次接收启动。
+- **Normal 模式**：Idle 后 HAL 会 Abort DMA，必须重启，否则后面字节收不到；重启后从缓冲起点重新开收。
+- **Circular 模式（本模块要求）**：Idle 时 HAL **不** Abort DMA，环上写指针继续往后（绕回头部也是接着写，不是业务上的「复位到头重来」）。此时再调 `ReceiveToIdle` 往往因 `RxState` 仍为 Busy 而返回 `HAL_BUSY`（空操作），真正继续收靠的是还在转的 Circ DMA；调用重启是与 Normal 路径对齐、并确保 ToIdle/Idle 相关状态在可重启时被重新武装，**不要理解成「每次把写指针打回 buffer[0]」**。
+
 ## API
 
 ```c
