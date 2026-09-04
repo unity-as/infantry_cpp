@@ -110,8 +110,8 @@ void Cmd_Remote(void)
     float vy = -REMOTE_CHASSIS_V_SCALE * REMOTE_RC_LH();
     float v   = sqrtf(vx*vx + vy*vy);
     float dir = atan2f(vy, vx) + Gimbal_GetYaw()*M_PI/180.0f;
-    chassis_inst.v_ = v;
-    chassis_inst.theta_ = dir;
+    chassis_cmd.v = v;
+    chassis_cmd.theta = dir;
 
     // 拨轮 → 底盘角速度（NO_ROTATION 模式由 Chassis_Task 应用）
     chassis_cmd.w_rot = - REMOTE_RC_WHEEL() * REMOTE_CHASSIS_W_SCALE;
@@ -152,9 +152,9 @@ void Cmd_Mouse(void)
     if (vx != 0.0f && vy != 0.0f)
         v /= 1.4142f;   // 对角归一化
     v *= KEYBOARD_CHASSIS_V_MPS;
-    chassis_inst.v_ = v;
     float dir = atan2f(vy, vx) + Gimbal_GetYaw()*M_PI/180.0f - M_PI/2.0f;
-    chassis_inst.theta_ = dir;
+    chassis_cmd.v = v;
+    chassis_cmd.theta = dir;
 
     // 键鼠暂不做底盘角速度，清 0 防残留
     chassis_cmd.w_rot = 0.0f;

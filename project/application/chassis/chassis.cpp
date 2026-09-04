@@ -1,14 +1,14 @@
 /**
  * @file    chassis.cpp
- * @brief   底盘模块（C → C++：无实例，自由函数置于全局命名空间）
- * @note    从 C 版 chassis 迁移，逻辑不变，禁堆（chassis_inst 由指针改为全局对象）。
+ * @brief   底盘应用层：读 chassis_cmd，灌入 ChassisMotion（core）
  */
 #include "chassis.h"
+#include "chassis_motion.h"
 #include "cmsis_os2.h"
 #include <math.h>
 
 Chassis_Cmd chassis_cmd;
-ChassisMotion chassis_inst;
+static ChassisMotion chassis_inst;
 
 PID::Config pid_velocity_config =
 {
@@ -29,6 +29,8 @@ static void Chassis_Task(void *arg)
     (void)arg;
     for (;;) {
         chassis_inst.velocity_.setEnable(chassis_cmd.enable);
+        chassis_inst.v_ = chassis_cmd.v;
+        chassis_inst.theta_ = chassis_cmd.theta;
 
         if (chassis_cmd.mode == CHASSIS_MODE_FOLLOW)
         {
@@ -53,8 +55,11 @@ void Chassis_Init(void)
 {
     chassis_cmd = Chassis_Cmd{
         .v = 0.0f,
+        .theta = 0.0f,
         .w_rot = 0.0f,
+        .yaw_motor_angle = 0.0f,
         .mode = CHASSIS_MODE_NO_ROTATION,
+        .enable = 0,
     };
 
     ChassisMotion::Config cfg = {

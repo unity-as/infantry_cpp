@@ -2,9 +2,10 @@
 
 ```
 遥控/键鼠 → Cmd_Task
-    → 写 chassis_cmd { v, w_rot, yaw_motor_angle, mode, enable }
+    → 写 chassis_cmd { v, theta, w_rot, yaw_motor_angle, mode, enable }
         → Chassis_Task (1ms)
-            → FOLLOW：error(yaw_motor_angle) → chassis_inst.w_rot_
+            → 灌入 core：v_ / theta_ ← cmd
+            → FOLLOW：error(yaw_motor_angle) → w_rot_
             → NO_ROTATION：w_rot_ = chassis_cmd.w_rot
             → LITTLE_TOP：w_rot_ = 0（未实现）
         → ChassisMotion：v / θ / w → 四轮 ω*
