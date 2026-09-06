@@ -34,11 +34,14 @@ static void Chassis_Task(void *arg)
 
         if (chassis_cmd.mode == CHASSIS_MODE_FOLLOW)
         {
-            float error = fmodf(chassis_cmd.yaw_motor_angle + 180.0f, 360.0f);
-            if (error < 0.0f) error += 360.0f;   // fmodf 结果符号与被除数一致，负数时需归一到 [0,360)
-            error -= 180.0f;
+            // float error = fmodf(chassis_cmd.yaw_motor_angle + 180.0f, 360.0f);
+            // if (error < 0.0f) error += 360.0f;   // fmodf 结果符号与被除数一致，负数时需归一到 [0,360)
+            // error -= 180.0f;
+            float error = fmodf(chassis_cmd.yaw_motor_angle + 45.0f, 90.0f);
+            if (error < 0.0f) error += 90.0f;   // fmodf 结果符号与被除数一致，负数时需归一到 [0,90)
+            error -= 45.0f;
             // chassis_inst.w_rot_ = chassis_inst.theta_ * 2.0f;//跟随底盘移动方向
-            chassis_inst.w_rot_ = error * 4 *3.14/180.0f;//跟随云台方向
+            chassis_inst.w_rot_ = error * 0.2f;//跟随云台方向
 
             //纯P就懒得上pid了
         }

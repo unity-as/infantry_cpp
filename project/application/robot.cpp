@@ -13,9 +13,17 @@ void Robot_Init(void)
 
     Cmd_Init();// 初始化遥控器、键鼠、AHRS、小电脑通信、裁判系统、RGB灯
 
-    Chassis_Init();
+    #if GIMBAL_INIT
     Gimbal_Init();
+    #endif
+
+    #if CHASSIS_INIT
+    Chassis_Init();
+    #endif
+
+    #if SHOOT_INIT
     Shoot_Init();
+    #endif
 
     DJIMotor::timbaseSelect(&htim5);
 }

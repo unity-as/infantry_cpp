@@ -31,7 +31,7 @@ public:
 
     void init(const Config& config);   // 替代 ChassisMotion_Register
 
-    // —— 底盘输入量（跨模块直接读）——
+    // —— 底盘输入量 ——
     float theta_ = 0.0f;   // 底盘朝向角度 (rad)
     float v_ = 0.0f;       // 移动速度 (m/s)
     float w_rot_ = 0.0f;   // 旋转速度 (rad/s)
