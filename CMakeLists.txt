@@ -74,7 +74,9 @@ file(GLOB_RECURSE USER_SRC CONFIGURE_DEPENDS
     ${CMAKE_SOURCE_DIR}/project/*.cpp)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${USER_SRC})
 
-file(GLOB_RECURSE USER_HDR CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/project/*.h)
+file(GLOB_RECURSE USER_HDR CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/project/*.h
+    ${CMAKE_SOURCE_DIR}/project/*.hpp)
 foreach(hdr ${USER_HDR})
     get_filename_component(hdr_dir ${hdr} DIRECTORY)
     target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${hdr_dir})
