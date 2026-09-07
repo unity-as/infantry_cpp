@@ -4,4 +4,5 @@
 - `bsp/`          板级支持包：外设抽象（gpio / can / usart / pwm / spi / tim）
 - `modules/`      可复用模块（algorithm / motor / imu / remote / referee）
 
-当前为空架子，内容后续填充。
+> 已从 `infantry_cpp` 迁入底稿（C++）。接入说明见仓库根目录 `MIGRATION_NOTES.md`，巧思清单见 `DESIGN_INSIGHTS.md`。
+> **在完成 CubeMX/`Core` 对齐并重标零位前，不要当本车成品烧录跑。**
