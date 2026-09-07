@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake Configure",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--preset", "ARM GCC (Ninja)"],
+      "group": "build"
+    },
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", "build", "--target", "all"],
+      "dependsOn": "CMake Configure",
+      "group": "build"
+    },
+    {
+      "label": "flash dap",
+      "type": "shell",
+      "command": "D:/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+      "args": [
+        "-f", "openocd_dap.cfg",
+        "-c", "program build/27_infantry.elf verify reset exit"
+      ],
+      "dependsOn": "build",
+      "group": "build"
+    },
+    {
+      "label": "flash jlink",
+      "type": "shell",
+      "command": "C:/Users/Administrator/Desktop/train/SEGGER/JLink_V722b/JLink.exe",
+      "args": [
+        "-device", "STM32F407IG",
+        "-if", "SWD",
+        "-Speed", "4000",
+        "-CommanderScript", "stm32.jflash"
+      ],
+      "dependsOn": "build",
+      "group": "build"
+    },
+    {
+      "label": "Ozone",
+      "type": "shell",
+      "command": "C:/Users/Administrator/Desktop/train/SEGGER/Ozone V3.24/Ozone.exe",
+      "args": ["${workspaceFolder}/27_infantry.jdebug"],
+      "dependsOn": "build",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "log (RTT)",
+      "type": "shell",
+      "command": "D:/Python/Python313/Scripts/pyocd.exe",
+      "args": ["rtt", "--target", "cortex_m"],
+      "group": "build"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": ["${workspaceFolder}/**"],
+      "defines": ["USE_HAL_DRIVER", "STM32F407xx"],
+      "cStandard": "c17",
+      "cppStandard": "gnu++17",
+      "intelliSenseMode": "windows-gcc-x64",
+      "configurationProvider": "ms-vscode.cmake-tools"
+    }
+  ]
+}

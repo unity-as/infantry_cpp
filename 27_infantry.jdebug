@@ -1,0 +1,26 @@
+/*********************************************************************
+*                 (c) SEGGER Microcontroller GmbH                    *
+*                      The Embedded Experts                          *
+*                         www.segger.com                             *
+**********************************************************************
+File          : 27_infantry.jdebug
+Ozone Version : V3.24
+*/
+
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* 自动生成：设备 / SVD / elf 路径由一键脚本按芯片型号填写
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  Project.AddPathSubstitute ("$(ProjectDir)", "$(ProjectDir)");
+  Project.SetDevice ("STM32F407IG");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M4F.svd");
+  File.Open ("$(ProjectDir)/build/27_infantry.elf");
+}

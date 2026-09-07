@@ -1,0 +1,19 @@
+{
+  "files.associations": {
+    "*.h": "c"
+  },
+  "cmake.generator": "Ninja",
+  "cmake.buildDirectory": "${workspaceFolder}/build",
+  "cmake.configureArgs": [
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+  ],
+  "clangd.enable": true,
+  "clangd.path": "D:/msys64/ucrt64/bin/clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--compile-commands-dir=${workspaceFolder}/build",
+    "--header-insertion=never",
+    "--all-scopes-completion",
+    "--query-driver=D:/msys64/ucrt64/bin/arm-none-eabi-gcc.exe"
+  ]
+}

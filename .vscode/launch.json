@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug (CMSIS-DAP)",
+      "cwd": "${workspaceRoot}",
+      "executable": "${workspaceRoot}/build/27_infantry.elf",
+      "request": "launch",
+      "type": "cortex-debug",
+      "device": "STM32F407IG",
+      "servertype": "openocd",
+      "configFiles": ["openocd_dap.cfg"],
+      "runToEntryPoint": "main",
+      // "svdFile": "${workspaceRoot}/STM32F405.svd"
+    },
+    {
+      "name": "Debug (J-Link)",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceRoot}/build/27_infantry.elf",
+      "request": "launch",
+      "type": "cortex-debug",
+      "device": "STM32F407IG",
+      "servertype": "jlink",
+      "interface": "swd",
+      "runToEntryPoint": "main"
+    }
+  ]
+}

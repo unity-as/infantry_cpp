@@ -1,0 +1,25 @@
+{
+  "version": 8,
+  "configurePresets": [
+    {
+      "name": "ARM GCC (Ninja)",
+      "displayName": "ARM GCC (Ninja)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
+        "CMAKE_C_COMPILER": "D:/msys64/ucrt64/bin/arm-none-eabi-gcc.exe",
+        "CMAKE_CXX_COMPILER": "D:/msys64/ucrt64/bin/arm-none-eabi-g++.exe",
+        "CMAKE_ASM_COMPILER": "D:/msys64/ucrt64/bin/arm-none-eabi-gcc.exe",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build",
+      "configurePreset": "ARM GCC (Ninja)"
+    }
+  ]
+}
