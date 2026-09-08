@@ -11,6 +11,7 @@ uint8_t DJIMotor::idx_ = 0;
 CAN DJIMotor::tx_group_pool_[DJIM_MAX_GROUP] = {};
 uint8_t DJIMotor::group_idx_ = 0;
 TIM DJIMotor::tim_;
+TIM_HandleTypeDef* DJIMotor::timbase_htim_ = nullptr;
 
 void DJIMotor::decodeCallback(void* device)
 {
@@ -81,7 +82,7 @@ CAN* DJIMotor::getGroup(DJIMotor* instance)
 {
     for (uint8_t i = 0; i < group_idx_; i++)
         if (tx_group_pool_[i].can_handle_ == instance->djim_can_.can_handle_ &&
-            tx_group_pool_[i].tx_conf_.StdId == DJIM_TX_ID(DJIM_TX_GROUP(instance->motor_type_, instance->motor_id_)))
+            tx_group_pool_[i].getTxId() == DJIM_TX_ID(DJIM_TX_GROUP(instance->motor_type_, instance->motor_id_)))
             return &tx_group_pool_[i];
     return nullptr;
 }
@@ -200,10 +201,14 @@ void DJIMotor::setCurrentFF(float current)
 // DJI电机控制对实时性要求较高，尤其是位置环，建议使用定时器中断来更新PID。
 void DJIMotor::timbaseSelect(TIM_HandleTypeDef* htim)
 {
-    tim_.setCallback(timCallback, nullptr);
+    timbase_htim_ = htim;
 
+    tim_.setCallback(timCallback, nullptr);
     TIM::Config tim_config = { .htim = htim };
     tim_.init(tim_config);
+
+    for (uint8_t i = 0; i < idx_; i++)
+        instances_[i]->daemon_lose_.setTimbase(htim);
 }
 
 void DJIMotor::init(const Config& config)
@@ -215,8 +220,8 @@ void DJIMotor::init(const Config& config)
         return;  // 能进这里家里得请高人了
 
     Daemon::Config daemon_config = {
-        .tim_config = { .htim = nullptr },  // 原 C 未设 tim_config，htim 为 NULL
-        .cycle = 100,                        // 守护进程 ms
+        .tim_config = { .htim = nullptr },  // 时基由 timbaseSelect 统一补绑
+        .cycle = 100,
         .daemon_callback = loseCallback,
         .device = this,
     };
@@ -257,6 +262,8 @@ void DJIMotor::init(const Config& config)
     djim_can_.init(can_config);
 
     daemon_lose_.init(daemon_config);
+    if (timbase_htim_ != nullptr)
+        daemon_lose_.setTimbase(timbase_htim_);
 
     CAN* djim_tx_instance = getGroup(this);
     if (djim_tx_instance == nullptr)
@@ -271,7 +278,7 @@ void DJIMotor::init(const Config& config)
             .rx_id = 0,  // 发送不需要设置接收id
         };
         djim_tx_instance->init(can_tx_config);
-        djim_tx_instance->tx_conf_.StdId = DJIM_TX_ID(DJIM_TX_GROUP(config.motor_type, config.motor_id));
+        djim_tx_instance->setTxId(DJIM_TX_ID(DJIM_TX_GROUP(config.motor_type, config.motor_id)));
 
         group_idx_++;
     }

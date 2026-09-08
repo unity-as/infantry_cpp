@@ -110,4 +110,5 @@ private:
     static CAN tx_group_pool_[DJIM_MAX_GROUP];        // 发送组 CAN 实例池
     static uint8_t group_idx_;                        // 已注册发送组数
     static TIM tim_;                                  // PID 更新定时器
+    static TIM_HandleTypeDef* timbase_htim_;          // timbaseSelect 选定的时基（供后注册电机补绑 daemon）
 };

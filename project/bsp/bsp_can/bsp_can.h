@@ -25,6 +25,8 @@ public:
     void init(const Config& config);    ///< 替代 CANRegister（禁堆）
     uint8_t transmit(float timeout);    ///< 替代 CANTransmit
     void setCallback(Callback callback, void* device);  ///< 设置接收回调
+    void setTxId(uint32_t tx_id) { tx_conf_.StdId = tx_id; }
+    uint32_t getTxId() const { return tx_conf_.StdId; }
 
     // —— 跨模块直接读写的状态（对齐 C 版字段）——
     CAN_HandleTypeDef* can_handle_;     ///< CAN 句柄
