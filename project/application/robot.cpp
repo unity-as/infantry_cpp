@@ -11,6 +11,9 @@ void Robot_Init(void)
 {
     DWT_Init();// 初始化 DWT 计数器，用于高精度延时
 
+    // 电机失联守护时基：允许先于各子系统 Init（电机注册时补绑）
+    DJIMotor::timbaseSelect(&htim5);
+
     Cmd_Init();// 初始化遥控器、键鼠、AHRS、小电脑通信、裁判系统、RGB灯
 
     #if GIMBAL_INIT
@@ -24,8 +27,6 @@ void Robot_Init(void)
     #if SHOOT_INIT
     Shoot_Init();
     #endif
-
-    DJIMotor::timbaseSelect(&htim5);
 }
 
 void Robot_Task(void)
