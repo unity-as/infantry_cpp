@@ -52,7 +52,6 @@ project/bsp/
 ├── bsp_dwt/          # DWT 微秒计时
 ├── bsp_adc/          # ADC
 ├── bsp_i2c/          # 硬件 I2C
-├── bsp_soft_i2c/     # 软件 I2C
 └── bsp_log/          # 日志（含 SEGGER RTT）
 ```
 
@@ -97,8 +96,7 @@ project/application/
 ├── cmd/                      # 指令中枢（遥控/键鼠/自瞄 → 各子系统）
 ├── chassis/                  # 底盘（含 chassis_core：motion / velocity）
 ├── gimbal/                   # 云台（含 gimbal_core）
-├── shoot/                    # 射击
-└── motor_test.cpp / .h       # 电机测试辅助
+└── shoot/                    # 射击
 ```
 
 ## 文件增删检查清单
