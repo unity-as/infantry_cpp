@@ -3,6 +3,7 @@
  * @brief   达妙关节电机：解码 + 四模式组帧 + 管理命令 + TIM 心跳
  * @note    自 leg_main 移植；MIT/反馈手拼跨字节字段；0x100/0x200 为 float 小端。
  *          每实例 Config.htim 驱动 update；Daemon 共用同一时基。经典 CAN。
+ *          Config.mode 在 init 写一次 CTRL_MODE；运行期 set* 只改给定。
  */
 #include "dm_motor.h"
 
@@ -48,6 +49,20 @@ void DMMotor::timCallback(void* device)
     instance->update();
 }
 
+DMMotor_EscCtrlMode DMMotor::modeToEsc(Mode mode)
+{
+    switch (mode) {
+    case Mode::Velocity:
+        return DM_ESC_VEL;
+    case Mode::Position:
+        return DM_ESC_POS_VEL;
+    case Mode::Current:
+    case Mode::Mit:
+    default:
+        return DM_ESC_MIT;
+    }
+}
+
 void DMMotor::init(const Config& config)
 {
     if (idx_ >= DM_MOTOR_MAX_INSTANCE)
@@ -55,6 +70,7 @@ void DMMotor::init(const Config& config)
 
     control_id_ = config.control_id;
     feedback_id_ = config.feedback_id;
+    mode_ = config.mode;
     direction_ = config.direction;
     reduction_ratio_ = config.reduction_ratio > 0.0f ? config.reduction_ratio : 1.0f;
     angle_offset_ = -config.initial_angle;
@@ -96,6 +112,10 @@ void DMMotor::init(const Config& config)
     tim_.setCallback(timCallback, this);
     TIM::Config tim_config = { .htim = config.htim };
     tim_.init(tim_config);
+
+    // 失能态写 CTRL_MODE（临时生效）；Init 阶段允许短忙等
+    writeRegU32(DM_REG_CTRL_MODE, static_cast<uint32_t>(modeToEsc(mode_)));
+    DWT_Delay_ms(2.0f);
 
     instances_[idx_++] = this;
 }
@@ -202,23 +222,6 @@ void DMMotor::writeRegU32(uint8_t rid, uint32_t value)
     dm_can_.transmit(1.0f);
 }
 
-void DMMotor::ensureEscMode(DMMotor_EscCtrlMode esc_mode)
-{
-    const uint8_t want = static_cast<uint8_t>(esc_mode);
-    if (esc_mode_ == want)
-        return;
-    writeRegU32(DM_REG_CTRL_MODE, static_cast<uint32_t>(want));
-    esc_mode_ = want;
-    DWT_Delay_ms(2.0f);  // 给电调清内部指令一点时间
-}
-
-void DMMotor::setEscCtrlMode(DMMotor_EscCtrlMode esc_mode)
-{
-    writeRegU32(DM_REG_CTRL_MODE, static_cast<uint32_t>(esc_mode));
-    esc_mode_ = static_cast<uint8_t>(esc_mode);
-    DWT_Delay_ms(2.0f);
-}
-
 void DMMotor::update()
 {
     if (!motor_enable_) {
@@ -305,23 +308,17 @@ void DMMotor::setAngle(float angle)
 
 void DMMotor::setAngle(float angle, float velocity)
 {
-    ensureEscMode(DM_ESC_POS_VEL);
-    mode_ = Mode::Position;
     target_angle_ = angle;
     target_velocity_ = velocity;
 }
 
 void DMMotor::setVelocity(float velocity)
 {
-    ensureEscMode(DM_ESC_VEL);
-    mode_ = Mode::Velocity;
     target_velocity_ = velocity;
 }
 
 void DMMotor::setCurrent(float current)
 {
-    ensureEscMode(DM_ESC_MIT);
-    mode_ = Mode::Current;
     target_current_ = current;
 }
 
@@ -334,8 +331,6 @@ void DMMotor::setMit(float angle, float velocity, float current, float kp, float
 
 void DMMotor::setMit(float angle, float velocity, float current)
 {
-    ensureEscMode(DM_ESC_MIT);
-    mode_ = Mode::Mit;
     target_angle_ = angle;
     target_velocity_ = velocity;
     target_current_ = current;
