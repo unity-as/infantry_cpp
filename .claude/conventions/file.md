@@ -64,6 +64,7 @@ project/bsp/
 project/modules/
 ├── motor/
 │   ├── dji_motor/            # DJI 电机（3508 / 2006 / 6020）
+│   ├── dm_motor/             # 达妙关节电机（MIT / 位置速度 / 速度）
 │   └── servo/                # 舵机
 ├── remote/                   # 遥控器（自由函数 + 全局帧）
 ├── serial/                   # 通用串口管理（不定长 + daemon）
