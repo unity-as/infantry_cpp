@@ -10,8 +10,12 @@
 enum Chassis_Mode {
     CHASSIS_MODE_NO_ROTATION,
     CHASSIS_MODE_FOLLOW,
-    CHASSIS_MODE_LITTLE_TOP,
+    CHASSIS_MODE_LITTLE_TOP,      ///< 小陀螺正向（恒定 +w）
+    CHASSIS_MODE_LITTLE_TOP_REV,  ///< 小陀螺反向（恒定 -w）
 };
+
+/** 小陀螺恒定角速度 (rad/s)，约 1.5 圈/秒 */
+#define CHASSIS_LITTLE_TOP_W  (1.5f * 2.0f * 3.14159f)
 
 struct Chassis_Cmd {
     float v;               // 平移速度 (m/s)

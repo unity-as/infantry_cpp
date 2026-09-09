@@ -23,5 +23,12 @@ extern Shoot_Cmd shoot_cmd;
 #define SHOOT_PERIOD_MS           64     // 发弹周期 (ms)
 #define MAG_FEED_SPEED     (MAG_DEG_PER_ROUND * 1000.0f / SHOOT_PERIOD_MS)  // 拨盘转速 (deg/s), 由发弹周期和装载量算出
 
+enum Shoot_LoaderMode : uint8_t {
+    SHOOT_LOADER_STOP = 0,
+    SHOOT_LOADER_BURST,
+    SHOOT_LOADER_REVERSE,
+};
+
 void Shoot_Init(void);
 void Shoot_Fire(uint8_t count);
+void Shoot_SetLoader(Shoot_LoaderMode mode);

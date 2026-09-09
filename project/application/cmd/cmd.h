@@ -27,6 +27,9 @@
 #define MOUSE_GIMBAL_YAW_SCALE          0.001f
 #define MOUSE_GIMBAL_PITCH_SCALE        0.0005f
 
+// ============ DT7 拨轮发射阈值（对齐旧工程 ±200）============
+#define DT7_DIAL_FIRE_THRESHOLD         200
+
 extern AHRS cmd_ahrs;
 
 void Cmd_Init(void);

@@ -1,78 +1,70 @@
 /**
  * @file    remote.h
- * @brief   遥控模块（C → C++：无实例，自由函数置于全局命名空间）
- * @note    从 C 版 remote 迁移，逻辑不变。remote_frame_t 为协议位域结构体（保持原样），
- *          字节缓冲强转结构体指针统一改 memcpy（§9）。去掉 extern "C"、改用 #pragma once。
+ * @brief   遥控模块门面：class Remote + 编译期路由到 VT13/DT7
+ * @note    机型由 remote_config.h 宏选定；应用层仍可用 Remote_Init / REMOTE_* 宏。
  */
 #pragma once
 
+#include "remote_config.h"
 #include "bsp_usart.h"
 #include "bsp_tim.h"
 #include <stdint.h>
 
-#define REMOTE_FRAME_LEN 21
+class Remote {
+public:
+    enum class Device : uint8_t {
+        Vt13 = 0,
+        Dt7,
+        Reserved,  ///< 第三种遥控器占位
+    };
 
-extern uint8_t remote_data_flag;
+    struct Config {
+        Device device;
+        UART_HandleTypeDef* usart_handle;
+    };
 
-#pragma pack(1)
+    void init(const Config& config);
+    uint8_t online() const;
 
-typedef struct {
-    uint8_t  sof_1;
-    uint8_t  sof_2;
-    uint64_t ch_0      : 11;
-    uint64_t ch_1      : 11;
-    uint64_t ch_2      : 11;
-    uint64_t ch_3      : 11;
-    uint64_t mode_sw   :  2;
-    uint64_t pause     :  1;
-    uint64_t fn_1      :  1;
-    uint64_t fn_2      :  1;
-    uint64_t wheel     : 11;
-    uint64_t trigger   :  1;
-    int16_t  mouse_x;
-    int16_t  mouse_y;
-    int16_t  mouse_z;
-    uint8_t  mouse_left  : 2;
-    uint8_t  mouse_right : 2;
-    uint8_t  mouse_middle: 2;
-    uint16_t key;
-    uint16_t crc16;
-} remote_frame_t;
+    static Remote& instance();
 
-#pragma pack()
+private:
+    Remote() = default;
+    bool uartParamsMatch(UART_HandleTypeDef* huart) const;
+};
 
-// ========== 断言 ==========
-static_assert(sizeof(remote_frame_t) == REMOTE_FRAME_LEN, "remote_frame_t size mismatch");// 断言：长度为 21 字节
+/* ========== 编译期路由：机型数据与访问宏 ========== */
 
-// ========== 遥控数据 ==========
-extern const remote_frame_t * const remote_data; //不可修改，指向遥控数据缓冲区
+#if defined(REMOTE_DEVICE_VT13)
 
-// ========== 遥控通道 (偏差 = 原始值 - 中值, 范围 ±660) ==========
+#include "vt13.h"
+
+#define REMOTE_FRAME_LEN REMOTE_VT13_FRAME_LEN
+
+#define remote_data_flag remote_vt13::data_flag
+#define remote_data       remote_vt13::data
+
 #define REMOTE_RC_CH_MID          1024
 #define REMOTE_RC_CH_MIN          364
 #define REMOTE_RC_CH_MAX          1684
 
-#define REMOTE_RC_RH()            ((int16_t)remote_data->ch_0 - REMOTE_RC_CH_MID)  // 右摇杆水平
-#define REMOTE_RC_RV()            ((int16_t)remote_data->ch_1 - REMOTE_RC_CH_MID)  // 右摇杆竖直
-#define REMOTE_RC_LV()            ((int16_t)remote_data->ch_2 - REMOTE_RC_CH_MID)  // 左摇杆竖直
-#define REMOTE_RC_LH()            ((int16_t)remote_data->ch_3 - REMOTE_RC_CH_MID)  // 左摇杆水平
+#define REMOTE_RC_RH()            ((int16_t)remote_data->ch_0 - REMOTE_RC_CH_MID)
+#define REMOTE_RC_RV()            ((int16_t)remote_data->ch_1 - REMOTE_RC_CH_MID)
+#define REMOTE_RC_LV()            ((int16_t)remote_data->ch_2 - REMOTE_RC_CH_MID)
+#define REMOTE_RC_LH()            ((int16_t)remote_data->ch_3 - REMOTE_RC_CH_MID)
 
-// ========== 开关 (0=C, 1=N, 2=S) ==========
 #define REMOTE_RC_SW_C            0
 #define REMOTE_RC_SW_N            1
 #define REMOTE_RC_SW_S            2
 #define REMOTE_RC_SWITCH()        (remote_data->mode_sw)
 
-// ========== 按键 (0/1) ==========
 #define REMOTE_RC_PAUSE()         (remote_data->pause)
 #define REMOTE_RC_FN_LEFT()       (remote_data->fn_1)
 #define REMOTE_RC_FN_RIGHT()      (remote_data->fn_2)
 #define REMOTE_RC_TRIGGER()       (remote_data->trigger)
 
-// ========== 拨轮 (偏差 = 原始值 - 中值, 范围 ±660) ==========
 #define REMOTE_RC_WHEEL()         ((int16_t)remote_data->wheel - REMOTE_RC_CH_MID)
 
-// ========== 键盘 ==========
 #define REMOTE_KEY_W              (1 << 0)
 #define REMOTE_KEY_S              (1 << 1)
 #define REMOTE_KEY_A              (1 << 2)
@@ -92,10 +84,40 @@ extern const remote_frame_t * const remote_data; //不可修改，指向遥控�
 
 #define REMOTE_KEY_PRESSED(k)     (remote_data && (remote_data->key & (k)))
 
-// ========== 鼠标按键 ==========
 #define REMOTE_MOUSE_LEFT_PRESSED()    (remote_data && remote_data->mouse_left)
 #define REMOTE_MOUSE_RIGHT_PRESSED()   (remote_data && remote_data->mouse_right)
 #define REMOTE_MOUSE_MIDDLE_PRESSED()  (remote_data && remote_data->mouse_middle)
 
-const remote_frame_t *Remote_Init(UART_HandleTypeDef *huart);
+const remote_frame_t* Remote_Init(UART_HandleTypeDef* huart);
+
+#elif defined(REMOTE_DEVICE_DT7)
+
+#include "dt7.h"
+
+#define REMOTE_FRAME_LEN REMOTE_DT7_FRAME_LEN
+
+#define remote_data_flag remote_dt7::data_flag
+#define remote_data       remote_dt7::data
+
+#define REMOTE_RC_CH_MID          REMOTE_DT7_CH_MID
+#define REMOTE_RC_CH_MIN          REMOTE_DT7_CH_MIN
+#define REMOTE_RC_CH_MAX          REMOTE_DT7_CH_MAX
+
+#define REMOTE_RC_RH()            (remote_data->rocker_right_x)
+#define REMOTE_RC_RV()            (remote_data->rocker_right_y)
+#define REMOTE_RC_LV()            (remote_data->rocker_left_y)
+#define REMOTE_RC_LH()            (remote_data->rocker_left_x)
+#define REMOTE_RC_WHEEL()         (remote_data->dial)
+
+#define REMOTE_RC_SW_UP           REMOTE_DT7_SW_UP
+#define REMOTE_RC_SW_MID          REMOTE_DT7_SW_MID
+#define REMOTE_RC_SW_DOWN         REMOTE_DT7_SW_DOWN
+
+#define REMOTE_RC_SW_LEFT()       (remote_data->switch_left)
+#define REMOTE_RC_SW_RIGHT()      (remote_data->switch_right)
+
+const dt7_rc_t* Remote_Init(UART_HandleTypeDef* huart);
+
+#endif
+
 uint8_t Remote_Online();

@@ -2,6 +2,7 @@
  * @file    cmd.cpp
  * @brief   指令/主控模块（C → C++：无实例，自由函数置于全局命名空间）
  * @note    从 C 版 cmd 迁移，逻辑不变，禁堆（AHRS/RGB 实例由指针改为全局对象）。
+ *          VT13 / DT7 控制路径由 remote_config.h 编译期分支；VT13 行为保持原样。
  */
 #include "cmd.h"
 #include "config.h"
@@ -68,6 +69,8 @@ void Cmd_Init(void)
 
     cmd_rgb.initDefault();
 }
+
+#if defined(REMOTE_DEVICE_VT13)
 
 // ========== 自瞄 ==========
 
@@ -242,3 +245,96 @@ void Cmd_Task(void)
         Cmd_Mouse();
     }
 }
+
+#elif defined(REMOTE_DEVICE_DT7)
+
+/**
+ * DT7：摇杆云台/底盘；拨轮管发射（不用作 w_rot）；无 FN/扳机/键鼠。
+ */
+static void Cmd_Remote_Dt7(void)
+{
+    float yaw_delta   = -REMOTE_GIMBAL_YAW_SCALE   * REMOTE_RC_RH();
+    float pitch_delta = -REMOTE_GIMBAL_PITCH_SCALE * REMOTE_RC_RV();
+    Gimbal_Set_Increment_Setpoint(yaw_delta, pitch_delta);
+
+    float vx =  REMOTE_CHASSIS_V_SCALE * REMOTE_RC_LV();
+    float vy = -REMOTE_CHASSIS_V_SCALE * REMOTE_RC_LH();
+    float v   = sqrtf(vx * vx + vy * vy);
+    float dir = atan2f(vy, vx) + Gimbal_GetYaw() * M_PI / 180.0f;
+    chassis_cmd.v = v;
+    chassis_cmd.theta = dir;
+    chassis_cmd.w_rot = 0.0f;
+
+    int16_t dial = REMOTE_RC_WHEEL();
+    if (dial > DT7_DIAL_FIRE_THRESHOLD)
+        Shoot_SetLoader(SHOOT_LOADER_BURST);
+    else if (dial < -DT7_DIAL_FIRE_THRESHOLD)
+        Shoot_SetLoader(SHOOT_LOADER_REVERSE);
+    else
+        Shoot_SetLoader(SHOOT_LOADER_STOP);
+}
+
+void Cmd_Task(void)
+{
+    Cmd_UpdateRefereeDebug();
+
+    const referee_info_t *referee_data = Referee_GetData();
+
+    static uint32_t volt_tick = 0;
+    if (++volt_tick >= 10) {
+        volt_tick = 0;
+        bus_voltage = Power_GetBusVoltage();
+        Minipc_Send(cmd_ahrs.output_.yaw_total, cmd_ahrs.output_.euler[1], cmd_ahrs.output_.euler[0],
+                     referee_data->shoot_data.initial_speed, !referee_data->id.robot_color);
+    }
+
+    static uint32_t tick = 0;
+    if (tick < 1000) {
+        tick++;
+        return;
+    }
+
+    // 右开关：DOWN=关，MID/UP=开
+    uint8_t en = Remote_Online() && (REMOTE_RC_SW_RIGHT() != REMOTE_RC_SW_DOWN);
+    gimbal_cmd.enable  = en;
+    chassis_cmd.enable = en;
+    shoot_cmd.enable   = en;
+
+    float limit = (referee_data->power_heat.buffer_energy > 40.0f) ?
+                0.0f
+                :
+                (float)referee_data->robot_status.chassis_power_limit
+                + 10 - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
+
+    Chassis_SetPowerLimit(limit);
+
+    float buffer_energy = (float)referee_data->power_heat.buffer_energy;
+    float ratio = buffer_energy / CHASSIS_BUFFER_MAX_J;
+    if (ratio > 1.0f) ratio = 1.0f;
+    if (ratio < 0.0f) ratio = 0.0f;
+
+    uint16_t red   = (uint16_t)((1.0f - ratio) * 65535.0f);
+    uint16_t green = (uint16_t)(ratio * 65535.0f);
+    uint16_t blue  = (buffer_energy >= CHASSIS_BUFFER_MAX_J) ? 65535 : 0;
+    cmd_rgb.set(red, green, blue);
+
+    if (!en) {
+        Shoot_SetLoader(SHOOT_LOADER_STOP);
+        return;
+    }
+
+    chassis_cmd.yaw_motor_angle = Gimbal_GetYaw();
+
+    // 左开关：DOWN=跟随，MID=小陀螺反，UP=小陀螺正（对齐旧工程）
+    uint8_t sw_l = REMOTE_RC_SW_LEFT();
+    if (sw_l == REMOTE_RC_SW_DOWN)
+        Chassis_SetMode(CHASSIS_MODE_FOLLOW);
+    else if (sw_l == REMOTE_RC_SW_MID)
+        Chassis_SetMode(CHASSIS_MODE_LITTLE_TOP_REV);
+    else
+        Chassis_SetMode(CHASSIS_MODE_LITTLE_TOP);
+
+    Cmd_Remote_Dt7();
+}
+
+#endif

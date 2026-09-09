@@ -1,66 +1,113 @@
 /**
  * @file    remote.cpp
- * @brief   遥控模块实现（C → C++）
- * @note    原 C 版逻辑不变；字节缓冲强转结构体指针统一改 memcpy（§9），去 NULL 检查。
+ * @brief   遥控模块门面实现：校验机型/串口参数后转调对应驱动
  */
 #include "remote.h"
 
-#include "daemon.h"
-#include "serial.h"
-#include "crc.h"
-#include <string.h>
+#include "bsp_log.h"
 
-static Serial remote_serial;
-static Daemon remote_daemon;
-static remote_frame_t remote_frame;// 遥控数据缓冲区
+#if defined(REMOTE_DEVICE_VT13)
+#include "vt13.h"
+#elif defined(REMOTE_DEVICE_DT7)
+#include "dt7.h"
+#endif
 
-uint8_t remote_data_flag;
-extern const remote_frame_t * const remote_data = &remote_frame;
-
-static void Remote_SerialCallback(uint16_t len)
+Remote& Remote::instance()
 {
-    if (len != REMOTE_FRAME_LEN) return;
-
-    remote_frame_t serial_frame;
-    memcpy(&serial_frame, remote_serial.recv_buf_, sizeof(remote_frame_t));
-
-    if (serial_frame.sof_1 != 0xA9 || serial_frame.sof_2 != 0x53) return;
-    if (!CRC16_Verify(remote_serial.recv_buf_, REMOTE_FRAME_LEN)) return;
-
-    memcpy(&remote_frame, remote_serial.recv_buf_, REMOTE_FRAME_LEN);
-
-    remote_data_flag = 1;
-
-    remote_daemon.reset();
+    static Remote remote;
+    return remote;
 }
 
-static void Remote_Lost_Control(void *device)
+bool Remote::uartParamsMatch(UART_HandleTypeDef* huart) const
 {
-    (void)device;
+    if (huart == nullptr) return false;
+    return huart->Init.BaudRate == REMOTE_UART_BAUD &&
+           huart->Init.WordLength == REMOTE_UART_WORDLENGTH &&
+           huart->Init.Parity == REMOTE_UART_PARITY;
 }
+
+void Remote::init(const Config& config)
+{
+#if defined(REMOTE_DEVICE_VT13)
+    if (config.device != Device::Vt13) {
+        LOG_ERR(LOG_MOD_COMM, "Remote",
+                "Config.device mismatch: compiled VT13, got %u",
+                static_cast<unsigned>(config.device));
+        return;
+    }
+#elif defined(REMOTE_DEVICE_DT7)
+    if (config.device != Device::Dt7) {
+        LOG_ERR(LOG_MOD_COMM, "Remote",
+                "Config.device mismatch: compiled DT7, got %u",
+                static_cast<unsigned>(config.device));
+        return;
+    }
+#endif
+
+    if (!uartParamsMatch(config.usart_handle)) {
+        LOG_ERR(LOG_MOD_COMM, "Remote",
+                "UART params mismatch: got baud=%lu wl=0x%lx parity=0x%lx, "
+                "expect baud=%lu wl=0x%lx parity=0x%lx (fix CubeMX)",
+                (unsigned long)(config.usart_handle
+                                    ? config.usart_handle->Init.BaudRate
+                                    : 0u),
+                (unsigned long)(config.usart_handle
+                                    ? config.usart_handle->Init.WordLength
+                                    : 0u),
+                (unsigned long)(config.usart_handle
+                                    ? config.usart_handle->Init.Parity
+                                    : 0u),
+                (unsigned long)REMOTE_UART_BAUD,
+                (unsigned long)REMOTE_UART_WORDLENGTH,
+                (unsigned long)REMOTE_UART_PARITY);
+        return;
+    }
+
+#if defined(REMOTE_DEVICE_VT13)
+    remote_vt13::init(config.usart_handle);
+#elif defined(REMOTE_DEVICE_DT7)
+    remote_dt7::init(config.usart_handle);
+#endif
+}
+
+uint8_t Remote::online() const
+{
+#if defined(REMOTE_DEVICE_VT13)
+    return remote_vt13::online();
+#elif defined(REMOTE_DEVICE_DT7)
+    return remote_dt7::online();
+#else
+    return 0;
+#endif
+}
+
+/* ========== 兼容层 ========== */
+
+#if defined(REMOTE_DEVICE_VT13)
+
+const remote_frame_t* Remote_Init(UART_HandleTypeDef* huart)
+{
+    Remote::instance().init({
+        .device = Remote::Device::Vt13,
+        .usart_handle = huart,
+    });
+    return remote_vt13::data;
+}
+
+#elif defined(REMOTE_DEVICE_DT7)
+
+const dt7_rc_t* Remote_Init(UART_HandleTypeDef* huart)
+{
+    Remote::instance().init({
+        .device = Remote::Device::Dt7,
+        .usart_handle = huart,
+    });
+    return remote_dt7::data;
+}
+
+#endif
 
 uint8_t Remote_Online()
 {
-    return remote_daemon.online_;
-}
-
-const remote_frame_t *Remote_Init(UART_HandleTypeDef *huart)
-{
-    Daemon::Config remote_daemon_config = {
-        .tim_config = { .htim = &htim5 },
-        .cycle = 100,
-        .daemon_callback = Remote_Lost_Control,
-        .device = nullptr,
-    };
-    remote_daemon.init(remote_daemon_config);
-
-    Serial::Config serial_config =
-    {
-        .usart_handle = huart,
-        .htim = &htim5,
-        .rx_callback = Remote_SerialCallback,
-    };
-    remote_serial.init(serial_config);
-
-    return remote_data;
+    return Remote::instance().online();
 }

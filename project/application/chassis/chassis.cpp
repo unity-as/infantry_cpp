@@ -47,8 +47,12 @@ static void Chassis_Task(void *arg)
         }
         else if (chassis_cmd.mode == CHASSIS_MODE_NO_ROTATION)
             chassis_inst.w_rot_ = chassis_cmd.w_rot;//手动角速度（拨轮）
+        else if (chassis_cmd.mode == CHASSIS_MODE_LITTLE_TOP)
+            chassis_inst.w_rot_ = CHASSIS_LITTLE_TOP_W;
+        else if (chassis_cmd.mode == CHASSIS_MODE_LITTLE_TOP_REV)
+            chassis_inst.w_rot_ = -CHASSIS_LITTLE_TOP_W;
         else
-            chassis_inst.w_rot_ = 0.0f;//CHASSIS_MODE_LITTLE_TOP 小陀螺，独立功能（暂未实现）
+            chassis_inst.w_rot_ = 0.0f;
 
         osDelay(1);
     }

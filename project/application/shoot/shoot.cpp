@@ -2,6 +2,7 @@
  * @file    shoot.cpp
  * @brief   射击模块（C → C++：无实例，自由函数置于全局命名空间）
  * @note    从 C 版 shoot 迁移，逻辑不变，禁堆（电机实例由指针改为全局对象）。
+ *          Shoot_SetLoader 供 DT7 拨轮连发/反转；与 Shoot_Fire 计数供弹互斥。
  */
 #include "shoot.h"
 #include "cmsis_os2.h"
@@ -15,10 +16,13 @@ static DJIMotor motor_fric_l;
 static DJIMotor motor_fric_r;
 static DJIMotor motor_mag;
 
-// 拨盘状态机
+// 拨盘状态机（Shoot_Fire）
 static uint8_t  g_rounds_pending = 0;
 static uint16_t g_fire_timer = 0;       // 当前发已过时间 ms
 static uint8_t  fire_state = 0;         // 0=IDLE, 1=FIRING
+
+// 拨盘连续模式（Shoot_SetLoader，优先于计数供弹）
+static volatile Shoot_LoaderMode g_loader_mode = SHOOT_LOADER_STOP;
 
 /*
  * TODO: 裁判系统热量检查
@@ -106,7 +110,18 @@ void Shoot_Fire(uint8_t count)
     //     count = Referee_GetMaxRounds(count);
     // }
     if (count == 0) return;
+    if (g_loader_mode != SHOOT_LOADER_STOP) return;
     g_rounds_pending += count;
+}
+
+void Shoot_SetLoader(Shoot_LoaderMode mode)
+{
+    g_loader_mode = mode;
+    if (mode != SHOOT_LOADER_STOP) {
+        g_rounds_pending = 0;
+        g_fire_timer = 0;
+        fire_state = 0;
+    }
 }
 
 static void Shoot_Task(void *arg)
@@ -116,12 +131,24 @@ static void Shoot_Task(void *arg)
         motor_fric_r.setEnable(shoot_cmd.enable);
         motor_mag.setEnable(shoot_cmd.enable);
 
+        Shoot_LoaderMode loader = g_loader_mode;
+        if (loader != SHOOT_LOADER_STOP) {
+            if (loader == SHOOT_LOADER_BURST)
+                motor_mag.setVelocity(MAG_SPEED_DEGS);
+            else
+                motor_mag.setVelocity(-MAG_SPEED_DEGS);
+            osDelay(1);
+            continue;
+        }
+
         switch (fire_state) {
         case 0: // IDLE
             if (g_rounds_pending > 0) {
                 g_fire_timer = 0;
                 fire_state = 1;
                 motor_mag.setVelocity(MAG_SPEED_DEGS);
+            } else {
+                motor_mag.setVelocity(0.0f);
             }
             break;
 
