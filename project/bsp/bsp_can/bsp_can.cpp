@@ -37,8 +37,9 @@ static BusState* busStateFor(CAN_HandleTypeDef* h)
     s->filter_idx = 0;
     s->fifo_sel = 0;
     s->started = 0;
-    // 首路占用银行 0–13，其后占用 14–27（与原 hcan1/hcan2 划分一致，但不绑名字）
-    s->filter_bank_base = (bus_cnt_ == 0) ? 0 : CAN_SLAVE_FILTER_BANK_START;
+    // F4 滤波银行按外设划分（共享寄存器）：CAN1→0–13，CAN2→14–27；不绑 hcan* 全局名
+    s->filter_bank_base =
+        (h->Instance == CAN1) ? 0 : CAN_SLAVE_FILTER_BANK_START;
     bus_cnt_++;
     return s;
 }
