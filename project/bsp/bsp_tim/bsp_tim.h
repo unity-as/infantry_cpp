@@ -4,6 +4,8 @@
  * @note    从 C 版 bsp_tim 迁移：struct TIM_Instance → class TIM，Register → init，
  *          逻辑不变，禁堆。USER_TIM_PeriodElapsedCallback 被 main.c（C）调用，
  *          故保留 extern "C"（边界②），类声明用 #ifdef __cplusplus 隔离。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -22,20 +24,26 @@ public:
         TIM_HandleTypeDef* htim;    ///< TIM 句柄
     };
 
-    void init(const Config& config);    ///< 替代 TIM_Register（禁堆）
-    void setHandle(TIM_HandleTypeDef* htim);  ///< 已注册后补绑/更换句柄（不重复占槽）
-    void startIT();                     ///< 启动中断
-    void stopIT();                      ///< 停止中断
-    void setCallback(Callback callback, void* device);  ///< 设置周期中断回调
-    static void periodElapsedCallback(TIM_HandleTypeDef* htim);  ///< 中断分发
-
+    // —— 实例变量 ——
 private:
     TIM_HandleTypeDef* htim_ = nullptr;   ///< TIM 句柄
     Callback callback_ = nullptr;         ///< 周期中断回调
     void* device_ = nullptr;              ///< 回调 device
 
+    // —— static 变量 ——
     static TIM* instances_[TIM_MX_DEVICE_NUM];  ///< 实例注册表
     static uint8_t idx_;                        ///< 已注册数
+
+    // —— static 函数 ——
+public:
+    static void periodElapsedCallback(TIM_HandleTypeDef* htim);  ///< 中断分发
+
+    // —— 实例函数 ——
+    void init(const Config& config);    ///< 替代 TIM_Register（禁堆）
+    void setHandle(TIM_HandleTypeDef* htim);  ///< 已注册后补绑/更换句柄（不重复占槽）
+    void startIT();                     ///< 启动中断
+    void stopIT();                      ///< 停止中断
+    void setCallback(Callback callback, void* device);  ///< 设置周期中断回调
 };
 #endif  // __cplusplus
 

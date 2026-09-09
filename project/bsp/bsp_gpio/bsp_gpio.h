@@ -3,6 +3,8 @@
  * @brief   GPIO（C → C++）
  * @note    从 C 版 bsp_gpio 迁移：struct GPIO_Instance → class GPIO，GPIO_Register → init、
  *          GPIO_ReadPin/WritePin/TogglePin → readPin/writePin/togglePin，逻辑不变，禁堆。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -31,14 +33,7 @@ public:
         ExtiMode exti_mode;       ///< EXTI 模式
     };
 
-    void init(const Config& config);      ///< 替代 GPIO_Register（禁堆）
-    GPIO_PinState readPin();              ///< 替代 GPIO_ReadPin
-    void writePin(GPIO_PinState state);   ///< 替代 GPIO_WritePin
-    void togglePin();                     ///< 替代 GPIO_TogglePin
-    void setCallback(Callback callback);  ///< 设置 EXTI 回调
-
-    static void extiCallback(uint16_t pin);  ///< EXTI 分发
-
+    // —— 实例变量 ——
 private:
     GPIO_TypeDef* gpio_x_ = nullptr;    ///< GPIO 端口
     uint16_t pin_ = 0;                  ///< 引脚
@@ -46,6 +41,18 @@ private:
     ExtiMode exti_mode_;                ///< EXTI 模式
     Callback callback_ = nullptr;       ///< EXTI 回调
 
+    // —— static 变量 ——
     static GPIO* instances_[GPIO_MX_DEVICE_NUM];  ///< 实例注册表
     static uint8_t idx_;                          ///< 已注册数
+
+    // —— static 函数 ——
+public:
+    static void extiCallback(uint16_t pin);  ///< EXTI 分发
+
+    // —— 实例函数 ——
+    void init(const Config& config);      ///< 替代 GPIO_Register（禁堆）
+    GPIO_PinState readPin();              ///< 替代 GPIO_ReadPin
+    void writePin(GPIO_PinState state);   ///< 替代 GPIO_WritePin
+    void togglePin();                     ///< 替代 GPIO_TogglePin
+    void setCallback(Callback callback);  ///< 设置 EXTI 回调
 };

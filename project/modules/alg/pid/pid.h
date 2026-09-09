@@ -3,6 +3,8 @@
  * @brief   通用 PID 控制器（C → C++）
  * @note    从 C 版 pid 迁移：struct PID_Instance → class PID，PID_Init → init、
  *          PID_Update → update 等，逻辑不变，禁堆。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -46,20 +48,7 @@ public:
         uint8_t period;            // 采样周期 ms
     };
 
-    void init(const Config& config);                       ///< 替代 PID_Init（禁堆）
-    void reset();                                          ///< 替代 PID_Reset
-    void setIntegral(float value);                         ///< 替代 PID_Set_Integral
-    void resetIntegral();                                  ///< 替代 PID_Reset_Integral
-    void setParameters(float kp, float ki, float kd);      ///< 替代 PID_Set_Parameters
-    void setSetpoint(float setpoint);                      ///< 替代 PID_Set_Setpoint
-    void setFeedforward(float feedforward);                ///< 替代 PID_Set_Feedforward
-    Feature getFeatures(Feature feature);                  ///< 替代 PID_Get_Features
-    void setFeatures(Feature feature);                     ///< 替代 PID_Set_Features
-    void clearFeatures(Feature feature);                   ///< 替代 PID_Clear_Features
-    void backCalcAntiWindup(float limited_output);         ///< 反算抗饱和回灌：外部限幅后回灌真实输出
-    void update(float feedback);                           ///< 替代 PID_Update
-
-    // —— 跨模块直接读的状态 ——
+    // —— 实例变量 ——
     float setpoint_ = 0.0f;       ///< 目标值
     float output_ = 0.0f;         ///< PID 输出
     float integral_ = 0.0f;       ///< 积分项（位置式）
@@ -86,4 +75,19 @@ private:
     Mode mode_ = Mode::Position;
     uint16_t features_ = FeatureNone;
     uint8_t period_ = 1;
+
+    // —— 实例函数 ——
+public:
+    void init(const Config& config);                       ///< 替代 PID_Init（禁堆）
+    void reset();                                          ///< 替代 PID_Reset
+    void setIntegral(float value);                         ///< 替代 PID_Set_Integral
+    void resetIntegral();                                  ///< 替代 PID_Reset_Integral
+    void setParameters(float kp, float ki, float kd);      ///< 替代 PID_Set_Parameters
+    void setSetpoint(float setpoint);                      ///< 替代 PID_Set_Setpoint
+    void setFeedforward(float feedforward);                ///< 替代 PID_Set_Feedforward
+    Feature getFeatures(Feature feature);                  ///< 替代 PID_Get_Features
+    void setFeatures(Feature feature);                     ///< 替代 PID_Set_Features
+    void clearFeatures(Feature feature);                   ///< 替代 PID_Clear_Features
+    void backCalcAntiWindup(float limited_output);         ///< 反算抗饱和回灌：外部限幅后回灌真实输出
+    void update(float feedback);                           ///< 替代 PID_Update
 };

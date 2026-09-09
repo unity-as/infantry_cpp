@@ -150,7 +150,7 @@ void DJIMotor::timCallback(void* device)
         instances_[i]->update();  // 定时器中断处理函数，更新所有注册的电机实例的PID
 
     for (uint8_t i = 0; i < group_idx_; i++)
-        tx_group_pool_[i].transmit(1.0f);
+        tx_group_pool_[i].transmit(0.01f);
 }
 
 void DJIMotor::setAngle(float angle)

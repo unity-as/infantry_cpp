@@ -4,6 +4,8 @@
  * @note    从 C 版 ist8310 迁移：struct IST8310_Instance → class IST8310，
  *          IST8310_Register → init、IST8310_Acquire → acquire，逻辑不变，禁堆。
  *          WHO_AM_I 校验失败以 valid() 软错误状态体现（对齐 BMI088）。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -25,6 +27,14 @@ public:
         GPIO::Config rst_config;      ///< 复位引脚配置
     };
 
+    // —— 实例变量 ——
+private:
+    HardI2C i2c_;        ///< 硬件 I2C
+    GPIO rst_;           ///< 复位引脚
+    bool valid_ = false; ///< WHO_AM_I 校验通过标志
+
+    // —— 实例函数 ——
+public:
     void init(const Config& config);          ///< 替代 IST8310_Register（禁堆）
     bool valid() const { return valid_; }     ///< WHO_AM_I 校验是否通过
     uint8_t acquire(Data& data);              ///< 替代 IST8310_Acquire（0 成功 / 1 失败）
@@ -33,8 +43,4 @@ private:
     void reset();                              ///< 替代 IST8310_Reset
     uint8_t readReg(uint8_t reg);              ///< 替代 IST8310_ReadReg
     void writeReg(uint8_t reg, uint8_t data);  ///< 替代 IST8310_WriteReg
-
-    HardI2C i2c_;        ///< 硬件 I2C
-    GPIO rst_;           ///< 复位引脚
-    bool valid_ = false; ///< WHO_AM_I 校验通过标志
 };

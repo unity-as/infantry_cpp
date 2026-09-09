@@ -4,6 +4,8 @@
  * @note    从 C 版 serial 迁移：struct Serial_Instance → class Serial，
  *          Serial_Register → init、Serial_Send → send，逻辑不变，禁堆。
  *          本项目所有调用方 recv_size=1，多块缓冲（需 malloc）已删除，仅保留单块零拷贝模式。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -30,19 +32,24 @@ public:
         void (*rx_callback)(uint16_t len);   ///< 数据接收完成回调
     };
 
-    void init(const Config& config);                       ///< 替代 Serial_Register（禁堆）
-    void send(uint8_t* send_buf, uint16_t send_size);      ///< 替代 Serial_Send
-
-    // —— 跨模块读取（application 在 rx_callback 后读取）——
+    // —— 实例变量 ——
     uint8_t recv_buf_[SERIAL_RXBUFF_LIMIT];  ///< 接收数据缓冲
 
 private:
-    static void usartRxCallback(void* device, uint8_t recv_pos);  ///< 替代 Serial_USART_RX_Callback
-    static void fullTimeout(void* device);                        ///< 替代 Serial_FullTimeout
-    void copyToRecvBuf(uint16_t pos);                             ///< 替代 Serial_CopyToRecvBuf
-
     USART usart_;                         ///< 底层 USART（parse_buf 即 usart_.recv_buff_，零拷贝）
     Daemon full_daemon_;                  ///< 缓冲区满看门狗
     uint16_t last_pos_parse_ = 0;         ///< parse_buf 内绝对位置
     void (*rx_callback_)(uint16_t) = nullptr;  ///< 数据接收完成回调
+
+    // —— static 函数 ——
+    static void usartRxCallback(void* device, uint8_t recv_pos);  ///< 替代 Serial_USART_RX_Callback
+    static void fullTimeout(void* device);                        ///< 替代 Serial_FullTimeout
+
+    // —— 实例函数 ——
+public:
+    void init(const Config& config);                       ///< 替代 Serial_Register（禁堆）
+    void send(uint8_t* send_buf, uint16_t send_size);      ///< 替代 Serial_Send
+
+private:
+    void copyToRecvBuf(uint16_t pos);                             ///< 替代 Serial_CopyToRecvBuf
 };

@@ -5,6 +5,8 @@
  *          Preheat → preheat、Calibrate → calibrate、Start → start、Update → update；
  *          卡尔曼滤波器改用 KalmanFilter<6,3> 模板类（禁堆），BMI088/IMUTemp 内嵌为成员。
  *          磁力计融合默认关闭（AHRS_USE_MAGNETOMETER=0）。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -134,21 +136,11 @@ public:
         uint32_t preheat_timeout_ms; // 预热超时 [ms]，默认 30000
     };
 
-    // —— 状态数据（公开，跨模块直接读）——
+    // —— 实例变量 ——
     Output output_ = {};            ///< 姿态/角速度/加速度输出
     uint32_t preheat_elapsed_ms_ = 0;   ///< 预热实际耗时 [ms]
 
-    // —— 生命周期 ——
-    void init(const Config& config);   ///< 替代 AHRS_Register（外设初始化，禁堆）
-    void preheat();                    ///< 替代 AHRS_Preheat（阻塞加热到 40°C）
-    void calibrate();                  ///< 替代 AHRS_Calibrate（阻塞陀螺仪校准）
-    void start();                      ///< 替代 AHRS_Start（创建 RTOS 任务）
-#if !AHRS_RTOS_SUPPORT
-    void task();                       ///< 替代裸机 AHRS_Task（1ms 周期调用 update）
-#endif
-
 private:
-    // —— 内部机制 ——
     BMI088 bmi088_;                    ///< 六轴 IMU（内嵌，禁堆）
 #if AHRS_USE_MAGNETOMETER
     IST8310 ist8310_;                  ///< 磁力计（内嵌，禁堆）
@@ -177,9 +169,7 @@ private:
     uint32_t task_last_tick_ = 0;      ///< 裸机 task 节流计数
 #endif
 
-    // —— 内部方法 ——
-    void initQuaternion();                        ///< 用加速度计初始化四元数
-    void update();                                ///< 核心 EKF 更新（1kHz）
+    // —— static 函数 ——
     static void predictCallback(KF& kf, float* F, const float* u);
     static void updateAccelCallback(KF& kf, float* H, float* h_x, const float* z);
 #if AHRS_USE_MAGNETOMETER
@@ -189,4 +179,18 @@ private:
 #if AHRS_RTOS_SUPPORT
     static void internalTask(void* arg);          ///< RTOS 任务入口
 #endif
+
+    // —— 实例函数 ——
+public:
+    void init(const Config& config);   ///< 替代 AHRS_Register（外设初始化，禁堆）
+    void preheat();                    ///< 替代 AHRS_Preheat（阻塞加热到 40°C）
+    void calibrate();                  ///< 替代 AHRS_Calibrate（阻塞陀螺仪校准）
+    void start();                      ///< 替代 AHRS_Start（创建 RTOS 任务）
+#if !AHRS_RTOS_SUPPORT
+    void task();                       ///< 替代裸机 AHRS_Task（1ms 周期调用 update）
+#endif
+
+private:
+    void initQuaternion();                        ///< 用加速度计初始化四元数
+    void update();                                ///< 核心 EKF 更新（1kHz）
 };

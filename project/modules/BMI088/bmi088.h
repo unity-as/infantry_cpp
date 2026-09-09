@@ -4,6 +4,8 @@
  * @note    从 C 版 bmi088 迁移：struct BMI088_Instance → class BMI088，Register → init、
  *          BMI088_Read_X/Set_X → readX/setX，逻辑不变，禁堆。
  *          加速度计/陀螺仪分两个 SPI 从机（各占一个软件片选）。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -155,11 +157,24 @@ public:
         float x, y, z;
     };
 
-    // —— 输出数据（跨模块读取）——
+    // —— 实例变量 ——
     Vector3 accel = {};       ///< 加速度 [m/s²]
     Vector3 gyro = {};        ///< 角速度 [rad/s]
     float temperature = 0.0f; ///< 温度 [°C]
 
+private:
+    SPI spi_acc_;          ///< 加速度计 SPI 从机
+    SPI spi_gyro_;         ///< 陀螺仪 SPI 从机
+    AccRange accel_range_ = AccRange::G3;       ///< 加速度计量程
+    GyroRange gyro_range_ = GyroRange::Dps125;  ///< 陀螺仪量程
+    float gyro_offset_[3] = {};                 ///< 陀螺仪零偏（运行时校准）
+    uint8_t use_ellipsoid_cal_ = 0;             ///< 是否使用椭球拟合校准
+    float accel_offset_[3] = {};                ///< 加速度偏移
+    float accel_M_[9] = {};                     ///< 3×3 修正矩阵
+    bool valid_ = false;                        ///< 初始化成功标志
+
+    // —— 实例函数 ——
+public:
     void init(const Config& config);       ///< 替代 BMI088_Register（禁堆）
     bool valid() const { return valid_; }  ///< 芯片 ID 校验是否通过
 
@@ -172,7 +187,6 @@ public:
     void calibrate();                      ///< 替代 BMI088_Calibrate
 
 private:
-    // SPI 读写（BMI088 Accel 读需要 dummy byte）
     void accReadReg(uint8_t reg, uint8_t* buf, uint8_t len);
     void accWriteReg(uint8_t reg, uint8_t data);
     void gyroReadReg(uint8_t reg, uint8_t* buf, uint8_t len);
@@ -180,14 +194,4 @@ private:
 
     uint8_t accInit();   ///< 加速度计初始化（软复位 + 芯片 ID 校验 + 配置）
     uint8_t gyroInit();  ///< 陀螺仪初始化
-
-    SPI spi_acc_;          ///< 加速度计 SPI 从机
-    SPI spi_gyro_;         ///< 陀螺仪 SPI 从机
-    AccRange accel_range_ = AccRange::G3;       ///< 加速度计量程
-    GyroRange gyro_range_ = GyroRange::Dps125;  ///< 陀螺仪量程
-    float gyro_offset_[3] = {};                 ///< 陀螺仪零偏（运行时校准）
-    uint8_t use_ellipsoid_cal_ = 0;             ///< 是否使用椭球拟合校准
-    float accel_offset_[3] = {};                ///< 加速度偏移
-    float accel_M_[9] = {};                     ///< 3×3 修正矩阵
-    bool valid_ = false;                        ///< 初始化成功标志
 };

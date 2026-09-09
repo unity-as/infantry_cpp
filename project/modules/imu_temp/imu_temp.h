@@ -4,6 +4,8 @@
  * @note    从 C 版 imu_temp 迁移：struct IMU_Temp_Instance → class IMUTemp，
  *          IMU_Temp_Init → init、IMU_Temp_Update → update、IsReady → isReady、
  *          SafetyOff → safetyOff，逻辑不变，禁堆。PID + PWM 内嵌为成员。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -22,13 +24,16 @@ public:
         uint32_t channel;           ///< 加热用 PWM 通道
     };
 
-    void init(const Config& config);  ///< 替代 IMU_Temp_Init（禁堆）
-    void update(float temperature);   ///< 替代 IMU_Temp_Update
-    bool isReady();                   ///< 替代 IMU_Temp_IsReady
-    void safetyOff();                 ///< 替代 IMU_Temp_SafetyOff
-
+    // —— 实例变量 ——
 private:
     PID pid_;                              ///< 温度环 PID
     PWM pwm_;                              ///< 加热 PWM
     float target_temp_ = IMU_TEMP_TARGET;  ///< 目标温度
+
+    // —— 实例函数 ——
+public:
+    void init(const Config& config);  ///< 替代 IMU_Temp_Init（禁堆）
+    void update(float temperature);   ///< 替代 IMU_Temp_Update
+    bool isReady();                   ///< 替代 IMU_Temp_IsReady
+    void safetyOff();                 ///< 替代 IMU_Temp_SafetyOff
 };

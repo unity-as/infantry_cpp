@@ -3,6 +3,8 @@
  * @brief   PWM 输出（C → C++）
  * @note    从 C 版 bsp_pwm 迁移：struct PWM_Instance → class PWM，Register → init，
  *          逻辑不变，禁堆（原 malloc 实例改为栈/全局对象）。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -17,15 +19,19 @@ public:
         uint32_t channel;           ///< 通道
     };
 
+    // —— 实例变量 ——
+private:
+    TIM_HandleTypeDef* htim_;   ///< TIM 句柄
+    uint32_t channel_;          ///< 通道
+
+    // —— static 变量 ——
+    static uint32_t cpu_freq_hz_;   ///< CPU 频率，setPeriod 中需要
+
+    // —— 实例函数 ——
+public:
     void init(const Config& config);     ///< 替代 PWM_Register（禁堆）
     void start();                        ///< 启动 PWM
     void stop();                         ///< 停止 PWM
     void setDutyRatio(float dutyratio);  ///< 设置占空比 [0,1]
     void setPeriod(float period);        ///< 设置周期 [s]
-
-private:
-    TIM_HandleTypeDef* htim_;   ///< TIM 句柄
-    uint32_t channel_;          ///< 通道
-
-    static uint32_t cpu_freq_hz_;   ///< CPU 频率，setPeriod 中需要
 };
