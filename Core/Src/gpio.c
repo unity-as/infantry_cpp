@@ -58,10 +58,10 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(MAG_RST_GPIO_Port, MAG_RST_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CS1_Accel_GPIO_Port, CS1_Accel_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(ACC_CS_GPIO_Port, ACC_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CS2_Pin|CS1_Gyro_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, CS2_Pin|GYRO_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : MAG_RST_Pin */
   GPIO_InitStruct.Pin = MAG_RST_Pin;
@@ -82,12 +82,12 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(KEY_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : CS1_Accel_Pin */
-  GPIO_InitStruct.Pin = CS1_Accel_Pin;
+  /*Configure GPIO pin : ACC_CS_Pin */
+  GPIO_InitStruct.Pin = ACC_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(CS1_Accel_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(ACC_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : INT1_Accel_Pin INT1_Gyro_Pin */
   GPIO_InitStruct.Pin = INT1_Accel_Pin|INT1_Gyro_Pin;
@@ -95,8 +95,8 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CS2_Pin CS1_Gyro_Pin */
-  GPIO_InitStruct.Pin = CS2_Pin|CS1_Gyro_Pin;
+  /*Configure GPIO pins : CS2_Pin GYRO_CS_Pin */
+  GPIO_InitStruct.Pin = CS2_Pin|GYRO_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;

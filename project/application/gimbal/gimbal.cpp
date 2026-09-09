@@ -70,7 +70,7 @@ void Gimbal_Init(void)
                       | PID::FeatureDerivativeOnMeasurement
                       | PID::FeatureFilter
                     ,
-            .integral_limit = 5000.0f,
+            .integral_limit = 10000.0f,
             .output_min = -1.0f, .output_max = 1.0f,
             .filter_alpha = 0.5f,
         },
