@@ -17,6 +17,9 @@ struct Gimbal_Cmd {
     uint8_t enable;
 };
 
+// ECD → 角度换算（8192 = 一圈）
+#define GIMBAL_ECD_TO_DEG(ecd)  ((float)(ecd) / 8192.0f * 360.0f)
+
 extern Gimbal_Cmd gimbal_cmd;
 
 void  Gimbal_Init(void);
