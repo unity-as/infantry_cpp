@@ -3,6 +3,8 @@
  * @brief   USART 串口（C → C++）
  * @note    从 C 版 bsp_usart 迁移：struct USART_Instance → class USART，
  *          USART_Register → init、USARTSend → send，逻辑不变，禁堆。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -25,23 +27,28 @@ public:
         UART_HandleTypeDef* usart_handle;   ///< HAL USART 句柄
     };
 
-    void init(const Config& config);    ///< 替代 USART_Register（禁堆）
-    void send(uint8_t* send_buf, uint16_t send_size);  ///< 替代 USARTSend
-    void setCallback(Callback callback, void* device); ///< 设置接收回调
-
-    // —— 跨模块直接读写的状态（对齐 C 版字段）——
+    // —— 实例变量 ——
     uint8_t recv_buff_[USART_RXBUFF_LIMIT]; ///< 接收缓冲区
 
-    static void rxEventCallback(UART_HandleTypeDef* huart, uint16_t size);  ///< 接收完成分发
-    static void errorCallback(UART_HandleTypeDef* huart);                   ///< 错误分发
-
 private:
-    void serviceInit();  ///< 替代 USART_ServiceInit（启动接收中断）
-
     UART_HandleTypeDef* usart_handle_ = nullptr;  ///< HAL USART 句柄
     Callback callback_ = nullptr;                 ///< 接收完成回调
     void* device_ = nullptr;                      ///< 回调 device
 
+    // —— static 变量 ——
     static USART* instances_[DEVICE_USART_CNT];   ///< 实例注册表
     static uint8_t idx_;                          ///< 已注册数
+
+    // —— static 函数 ——
+public:
+    static void rxEventCallback(UART_HandleTypeDef* huart, uint16_t size);  ///< 接收完成分发
+    static void errorCallback(UART_HandleTypeDef* huart);                   ///< 错误分发
+
+    // —— 实例函数 ——
+    void init(const Config& config);    ///< 替代 USART_Register（禁堆）
+    void send(uint8_t* send_buf, uint16_t send_size);  ///< 替代 USARTSend
+    void setCallback(Callback callback, void* device); ///< 设置接收回调
+
+private:
+    void serviceInit();  ///< 替代 USART_ServiceInit（启动接收中断）
 };

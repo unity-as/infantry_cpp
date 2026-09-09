@@ -3,6 +3,8 @@
  * @brief   Mahony AHRS 姿态解算（C → C++）
  * @note    从 C 版 mahony 迁移：struct → class，Register/Reset/Update → init/reset/update，
  *          逻辑不变，禁堆（原 malloc 实例改为栈/全局对象）。
+ *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -26,11 +28,7 @@ public:
         float dt;   ///< 采样周期 [s]
     };
 
-    void init(const Config& config);  ///< 替代 Mahony_Init（无堆）
-    void update(const IMU_Raw& imu);  ///< 替代 Mahony_Update
-    void reset();                     ///< 替代 Mahony_Reset
-
-    // —— 状态数据公开，对齐 C 版字段 ——
+    // —— 实例变量 ——
     float q0_, q1_, q2_, q3_;                 ///< 四元数
     float roll_, pitch_, yaw_;                ///< 欧拉角 [deg]
     float dt_;                                ///< 采样周期 [s]
@@ -38,4 +36,9 @@ public:
     float kp_, ki_;                           ///< 增益
     float ex_int_, ey_int_, ez_int_;          ///< 积分误差
     Attitude attitude_;                       ///< 姿态角输出 [deg]
+
+    // —— 实例函数 ——
+    void init(const Config& config);  ///< 替代 Mahony_Init（无堆）
+    void update(const IMU_Raw& imu);  ///< 替代 Mahony_Update
+    void reset();                     ///< 替代 Mahony_Reset
 };
