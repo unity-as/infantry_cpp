@@ -23,6 +23,9 @@ public:
     /// 注册/初始化（替代 Daemon_Register，禁堆）
     void init(const Config& config);
 
+    /// 已 init 后补绑时基（可先以 nullptr 注册，再由上层 timbase 统一设置）
+    void setTimbase(TIM_HandleTypeDef* htim);
+
     /// 喂狗（替代 Daemon_Reset）
     void reset();
 

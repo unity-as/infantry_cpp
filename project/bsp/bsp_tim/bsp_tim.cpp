@@ -17,11 +17,20 @@ void TIM::init(const Config& config) {
     startIT();
 }
 
+void TIM::setHandle(TIM_HandleTypeDef* htim) {
+    htim_ = htim;
+    startIT();
+}
+
 void TIM::startIT() {
+    if (htim_ == nullptr)
+        return;
     HAL_TIM_Base_Start_IT(htim_);
 }
 
 void TIM::stopIT() {
+    if (htim_ == nullptr)
+        return;
     HAL_TIM_Base_Stop_IT(htim_);
 }
 

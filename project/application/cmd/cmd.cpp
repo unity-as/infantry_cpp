@@ -116,11 +116,13 @@ void Cmd_Remote(void)
     // 拨轮 → 底盘角速度（NO_ROTATION 模式由 Chassis_Task 应用）
     chassis_cmd.w_rot = - REMOTE_RC_WHEEL() * REMOTE_CHASSIS_W_SCALE;
 
-    // 发射
+    // 发射：自瞄须视觉 can_fire；手动只看扳机
     if (shoot_test > 0) shoot_test--;
     if (REMOTE_RC_TRIGGER() && !shoot_test) {
-        shoot_test = SHOOT_PERIOD_MS;
-        Shoot_Fire(1);
+        if (!aim || Minipc_GetData()->can_fire) {
+            shoot_test = SHOOT_PERIOD_MS;
+            Shoot_Fire(1);
+        }
     }
 }
 
@@ -159,11 +161,13 @@ void Cmd_Mouse(void)
     // 键鼠暂不做底盘角速度，清 0 防残留
     chassis_cmd.w_rot = 0.0f;
 
-    // 发射
+    // 发射：自瞄须视觉 can_fire；手动只看左键
     if (shoot_test > 0) shoot_test--;
     if (REMOTE_MOUSE_LEFT_PRESSED() && !shoot_test) {
-        shoot_test = SHOOT_PERIOD_MS;
-        Shoot_Fire(1);
+        if (!aim_m || Minipc_GetData()->can_fire) {
+            shoot_test = SHOOT_PERIOD_MS;
+            Shoot_Fire(1);
+        }
     }
 }
 

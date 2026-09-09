@@ -10,89 +10,131 @@
 CAN* CAN::instances_[CAN_MX_REGISTER_CNT] = {nullptr};
 uint8_t CAN::idx_ = 0;
 
-void CAN::addFilter() {
-    CAN_FilterTypeDef can_filter_conf;
+/// 按句柄建表：惰性 Start、滤波序号、FIFO 轮转（不写死 hcan1/hcan2）
+struct BusState {
+    CAN_HandleTypeDef* handle = nullptr;
+    uint8_t filter_idx = 0;
+    uint8_t fifo_sel = 0;
+    uint8_t started = 0;
+    uint8_t filter_bank_base = 0;  ///< 0 或 CAN_SLAVE_FILTER_BANK_START（F4 共享银行）
+};
+
+static BusState buses_[CAN_MX_BUS_CNT];
+static uint8_t bus_cnt_ = 0;
+
+static BusState* busStateFor(CAN_HandleTypeDef* h)
+{
+    if (h == nullptr)
+        return nullptr;
+    for (uint8_t i = 0; i < bus_cnt_; i++) {
+        if (buses_[i].handle == h)
+            return &buses_[i];
+    }
+    if (bus_cnt_ >= CAN_MX_BUS_CNT)
+        return nullptr;
+    BusState* s = &buses_[bus_cnt_];
+    s->handle = h;
+    s->filter_idx = 0;
+    s->fifo_sel = 0;
+    s->started = 0;
+    // F4 滤波银行按外设划分（共享寄存器）：CAN1→0–13，CAN2→14–27；不绑 hcan* 全局名
+    s->filter_bank_base =
+        (h->Instance == CAN1) ? 0 : CAN_SLAVE_FILTER_BANK_START;
+    bus_cnt_++;
+    return s;
+}
+
+static void ensureStarted(CAN_HandleTypeDef* h)
+{
+    BusState* s = busStateFor(h);
+    if (s == nullptr || s->started)
+        return;
+
+    HAL_CAN_Start(h);
+    HAL_CAN_ActivateNotification(h, CAN_IT_RX_FIFO0_MSG_PENDING);
+    HAL_CAN_ActivateNotification(h, CAN_IT_RX_FIFO1_MSG_PENDING);
+    s->started = 1;
+}
+
+void CAN::addFilter()
+{
+    BusState* s = busStateFor(can_handle_);
+    if (s == nullptr)
+        return;
+
+    CAN_FilterTypeDef can_filter_conf{};
 
     // 过滤器配置,目前使用最简单的id列表模式,只过滤标准id,不使用掩码
     can_filter_conf.FilterMode = CAN_FILTERMODE_IDLIST;
     // 使用16位can（32位can会占用两个过滤器）
     can_filter_conf.FilterScale = CAN_FILTERSCALE_16BIT;
-    // 负载均衡,交替使用两个FIFO
-    static uint8_t fifox_idx = 0;
-    can_filter_conf.FilterFIFOAssignment = fifox_idx++ % 2 ? CAN_RX_FIFO0 : CAN_RX_FIFO1;
-    // 每个CAN接口给14个过滤器,过滤器0-13分配给CAN1,14-27分配给CAN2
-    can_filter_conf.SlaveStartFilterBank = 14;
+    // 本总线内负载均衡,交替使用两个FIFO
+    can_filter_conf.FilterFIFOAssignment = (s->fifo_sel++ % 2) ? CAN_RX_FIFO0 : CAN_RX_FIFO1;
+    can_filter_conf.SlaveStartFilterBank = CAN_SLAVE_FILTER_BANK_START;
     // 标准id在CAN过滤器中占位高5位,因此左移5位
-    can_filter_conf.FilterIdLow = rx_id_ << 5;
-    // 基于动态注册序列的哈希分流算法，以优化总线突发负载下的中断响应延迟分布
-    static uint8_t can1_filter_idx = 0, can2_filter_idx = 14;
-    can_filter_conf.FilterBank = can_handle_ == &hcan1 ? (can1_filter_idx++) : (can2_filter_idx++);
-    // 使能过滤器
+    can_filter_conf.FilterIdLow = static_cast<uint16_t>(rx_id_ << 5);
+    can_filter_conf.FilterBank = s->filter_bank_base + s->filter_idx++;
     can_filter_conf.FilterActivation = CAN_FILTER_ENABLE;
 
     HAL_CAN_ConfigFilter(can_handle_, &can_filter_conf);
 }
 
-void CAN::serviceInit() {
-    // 初始化CAN设备,启动CAN并使能接收中断
-    HAL_CAN_Start(&hcan1);
-    HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
-    HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO1_MSG_PENDING);
-    HAL_CAN_Start(&hcan2);
-    HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
-    HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO1_MSG_PENDING);
-}
-
-void CAN::init(const Config& config) {
-    if (idx_ == 0)
-        serviceInit(); // 第一次注册时,先进行硬件初始化
+void CAN::init(const Config& config)
+{
     if (idx_ >= CAN_MX_REGISTER_CNT)
-        return; // 超过最大实例数
-    for (size_t i = 0; i < idx_; i++)
-        if (instances_[i]->rx_id_ == config.rx_id && instances_[i]->can_handle_ == config.can_handle && config.rx_id != 0)
-            return; // 已注册相同can和id的实例,避免重复注册(rx_id为0的是TX组,不检查)
+        return;
+    if (config.can_handle == nullptr)
+        return;
+    for (size_t i = 0; i < idx_; i++) {
+        if (instances_[i]->rx_id_ == config.rx_id && instances_[i]->can_handle_ == config.can_handle &&
+            config.rx_id != 0)
+            return;  // 已注册相同 can 和 id（rx_id 为 0 的是 TX 组，不检查）
+    }
 
-    // 进行发送报文的配置
-    tx_conf_.IDE = CAN_ID_STD;      // 使用标准id,扩展id则使用CAN_ID_EXT(目前没有需求)
-    tx_conf_.RTR = CAN_RTR_DATA;    // 发送数据帧
-    tx_conf_.DLC = 0x08;            // 默认发送长度为8
-    // 设置句柄和接收id
+    tx_conf_.IDE = CAN_ID_STD;
+    tx_conf_.RTR = CAN_RTR_DATA;
+    tx_conf_.DLC = 0x08;
     can_handle_ = config.can_handle;
     rx_id_ = config.rx_id;
 
-    addFilter();                 // 添加CAN过滤器规则
-    instances_[idx_++] = this;   // 将实例保存到注册表
+    ensureStarted(can_handle_);
+    // TX 组（rx_id==0）不占滤波银行
+    if (rx_id_ != 0)
+        addFilter();
+
+    instances_[idx_++] = this;
 }
 
-uint8_t CAN::transmit(float timeout) {
+uint8_t CAN::transmit(float timeout)
+{
     float dwt_start = DWT_GetTimeline_ms();
-    while (HAL_CAN_GetTxMailboxesFreeLevel(can_handle_) == 0) // 等待有邮箱空闲
-        if (DWT_GetTimeline_ms() - dwt_start > timeout) // 超时
+    while (HAL_CAN_GetTxMailboxesFreeLevel(can_handle_) == 0)
+        if (DWT_GetTimeline_ms() - dwt_start > timeout)
             return 0;
-    // 发送报文
-    uint32_t tx_mailbox; // 这东西没用，从结构体拉出来丢这里了
+    uint32_t tx_mailbox;
     if (HAL_CAN_AddTxMessage(can_handle_, &tx_conf_, tx_buff_, &tx_mailbox))
         return 0;
-    return 1; // 发送成功
+    return 1;
 }
 
-void CAN::setCallback(Callback callback, void* device) {
+void CAN::setCallback(Callback callback, void* device)
+{
     callback_ = callback;
     device_ = device;
 }
 
-void CAN::fifoCallback(CAN_HandleTypeDef* hcan, uint32_t fifox) {
-    static CAN_RxHeaderTypeDef rxconf; // 同上
+void CAN::fifoCallback(CAN_HandleTypeDef* hcan, uint32_t fifox)
+{
+    static CAN_RxHeaderTypeDef rxconf;
     uint8_t can_rx_buff[8];
-    while (HAL_CAN_GetRxFifoFillLevel(hcan, fifox)) { // FIFO不为空,有可能在其他中断时有多帧数据进入
-        HAL_CAN_GetRxMessage(hcan, fifox, &rxconf, can_rx_buff); // 从FIFO中获取数据
+    while (HAL_CAN_GetRxFifoFillLevel(hcan, fifox)) {
+        HAL_CAN_GetRxMessage(hcan, fifox, &rxconf, can_rx_buff);
         for (size_t i = 0; i < idx_; i++) {
-            // 两者相等说明这是要找的实例
             if (hcan == instances_[i]->can_handle_ && rxconf.StdId == instances_[i]->rx_id_) {
-                if (instances_[i]->callback_ != nullptr) { // 回调函数不为空就调用
-                    instances_[i]->rx_len_ = rxconf.DLC;                      // 保存接收到的数据长度
-                    memcpy(instances_[i]->rx_buff_, can_rx_buff, rxconf.DLC); // 消息拷贝到对应实例
-                    instances_[i]->callback_(instances_[i]->device_);         // 触发回调进行数据解析和处理
+                if (instances_[i]->callback_ != nullptr) {
+                    instances_[i]->rx_len_ = rxconf.DLC;
+                    memcpy(instances_[i]->rx_buff_, can_rx_buff, rxconf.DLC);
+                    instances_[i]->callback_(instances_[i]->device_);
                 }
                 return;
             }
@@ -100,11 +142,12 @@ void CAN::fifoCallback(CAN_HandleTypeDef* hcan, uint32_t fifox) {
     }
 }
 
-// CAN接收中断回调函数（HAL 弱函数覆盖，C 链接）
-extern "C" void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef* hcan) {
+extern "C" void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef* hcan)
+{
     CAN::fifoCallback(hcan, CAN_RX_FIFO0);
 }
 
-extern "C" void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef* hcan) {
+extern "C" void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef* hcan)
+{
     CAN::fifoCallback(hcan, CAN_RX_FIFO1);
 }

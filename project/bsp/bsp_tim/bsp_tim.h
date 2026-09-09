@@ -23,6 +23,7 @@ public:
     };
 
     void init(const Config& config);    ///< 替代 TIM_Register（禁堆）
+    void setHandle(TIM_HandleTypeDef* htim);  ///< 已注册后补绑/更换句柄（不重复占槽）
     void startIT();                     ///< 启动中断
     void stopIT();                      ///< 停止中断
     void setCallback(Callback callback, void* device);  ///< 设置周期中断回调

@@ -35,3 +35,7 @@ void Daemon::init(const Config& config) {
 
     reset();
 }
+
+void Daemon::setTimbase(TIM_HandleTypeDef* htim) {
+    tim_.setHandle(htim);
+}
