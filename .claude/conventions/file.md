@@ -69,7 +69,6 @@ project/modules/
 ├── remote/                   # 遥控器（自由函数 + 全局帧）
 ├── serial/                   # 通用串口管理（不定长 + daemon）
 ├── daemon/                   # 离线看门狗
-├── dwt_protect/              # DWT 时间轴刷新守护
 ├── ahrs/                     # 姿态解算（EKF）
 ├── BMI088/                   # BMI088 IMU
 ├── ist8310/                  # 磁力计
