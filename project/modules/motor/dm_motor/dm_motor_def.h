@@ -25,6 +25,8 @@ enum DMMotor_Direction : uint8_t {
 #define DM_P_MAX (12.5f)
 #define DM_V_MIN (-45.0f)
 #define DM_V_MAX (45.0f)
+/** 位置速度模式 v_des 用很大值 ≈ 不限速（梯形匀速段上限，非 MIT 映射量程） */
+#define DM_VEL_UNLIMITED (1000.0f)
 #define DM_T_MIN (-18.0f)
 #define DM_T_MAX (18.0f)
 

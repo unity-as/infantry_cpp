@@ -6,6 +6,7 @@
  */
 #include "dm_motor.h"
 
+#include "bsp_dwt.h"
 #include <string.h>
 
 DMMotor* DMMotor::instances_[DM_MOTOR_MAX_INSTANCE] = {};
@@ -189,6 +190,35 @@ void DMMotor::sendCmd(DMMotor_Cmd cmd)
     dm_can_.transmit(1.0f);
 }
 
+void DMMotor::writeRegU32(uint8_t rid, uint32_t value)
+{
+    // 参数帧：StdId=0x7FF，{id_lo,id_hi,op=0x55,RID,u32 LE}
+    dm_can_.setTxId(DM_PARAM_CAN_ID);
+    dm_can_.tx_buff_[0] = static_cast<uint8_t>(control_id_ & 0xFFu);
+    dm_can_.tx_buff_[1] = static_cast<uint8_t>((control_id_ >> 8) & 0xFFu);
+    dm_can_.tx_buff_[2] = static_cast<uint8_t>(DM_PARAM_WRITE);
+    dm_can_.tx_buff_[3] = rid;
+    memcpy(&dm_can_.tx_buff_[4], &value, sizeof(uint32_t));
+    dm_can_.transmit(1.0f);
+}
+
+void DMMotor::ensureEscMode(DMMotor_EscCtrlMode esc_mode)
+{
+    const uint8_t want = static_cast<uint8_t>(esc_mode);
+    if (esc_mode_ == want)
+        return;
+    writeRegU32(DM_REG_CTRL_MODE, static_cast<uint32_t>(want));
+    esc_mode_ = want;
+    DWT_Delay_ms(2.0f);  // 给电调清内部指令一点时间
+}
+
+void DMMotor::setEscCtrlMode(DMMotor_EscCtrlMode esc_mode)
+{
+    writeRegU32(DM_REG_CTRL_MODE, static_cast<uint32_t>(esc_mode));
+    esc_mode_ = static_cast<uint8_t>(esc_mode);
+    DWT_Delay_ms(2.0f);
+}
+
 void DMMotor::update()
 {
     if (!motor_enable_) {
@@ -270,11 +300,12 @@ void DMMotor::setKd(float kd)
 
 void DMMotor::setAngle(float angle)
 {
-    setAngle(angle, 0.0f);
+    setAngle(angle, DM_VEL_UNLIMITED);
 }
 
 void DMMotor::setAngle(float angle, float velocity)
 {
+    ensureEscMode(DM_ESC_POS_VEL);
     mode_ = Mode::Position;
     target_angle_ = angle;
     target_velocity_ = velocity;
@@ -282,23 +313,28 @@ void DMMotor::setAngle(float angle, float velocity)
 
 void DMMotor::setVelocity(float velocity)
 {
+    ensureEscMode(DM_ESC_VEL);
     mode_ = Mode::Velocity;
     target_velocity_ = velocity;
 }
 
 void DMMotor::setCurrent(float current)
 {
+    ensureEscMode(DM_ESC_MIT);
     mode_ = Mode::Current;
     target_current_ = current;
 }
 
-void DMMotor::setMit(float angle, float current)
+void DMMotor::setMit(float angle, float velocity, float current, float kp, float kd)
 {
-    setMit(angle, 0.0f, current);
+    kp_ = kp;
+    kd_ = kd;
+    setMit(angle, velocity, current);
 }
 
 void DMMotor::setMit(float angle, float velocity, float current)
 {
+    ensureEscMode(DM_ESC_MIT);
     mode_ = Mode::Mit;
     target_angle_ = angle;
     target_velocity_ = velocity;

@@ -4,6 +4,7 @@
  * @note    自 leg_main 移植；壳子参考 DJIMotor（公开用户量 + private FeedbackRaw）；单位 rad、rad/s、N.m。
  *          本工程为经典 CAN（bsp_can），Config.can_handle 为 CAN_HandleTypeDef*。
  *          setEnable(0) 软失能并发 0 电流；setEnable(1) 软使能并发 0xFC。
+ *          软件 Mode 与电调 CTRL_MODE（RID=10）须一致：切速/位前会写 0x7FF 参数帧。
  *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
  *          （各组内 public → private）
  */
@@ -100,6 +101,7 @@ private:
 
     // 控制内部
     Mode mode_ = Mode::Current;
+    uint8_t esc_mode_ = 0;  ///< 已写入的 CTRL_MODE；0=未知（下次 ensure 必写）
 
     // —— static 变量 ——
     static DMMotor* instances_[DM_MOTOR_MAX_INSTANCE];
@@ -123,15 +125,20 @@ public:
     void setKp(float kp);
     void setKd(float kd);
 
-    void setAngle(float angle);                 ///< 差分速度默认 0
+    void setAngle(float angle);                 ///< 不限速（v_des = DM_VEL_UNLIMITED）
     void setAngle(float angle, float velocity); ///< velocity：梯形匀速段上限 [rad/s]
     void setVelocity(float velocity);
     void setCurrent(float current);             ///< 力矩给定 [N.m]（MIT 纯 t_ff）
-    void setMit(float angle, float current);    ///< 差分速度默认 0
-    void setMit(float angle, float velocity, float current);
+    void setMit(float angle, float velocity, float current, float kp, float kd);
+    void setMit(float angle, float velocity, float current);  ///< 用已设 kp_ kd_
+
+    /// 写电调 CTRL_MODE（RID=10）；建议失能时调用。临时生效，掉电不存 Flash。
+    void setEscCtrlMode(DMMotor_EscCtrlMode esc_mode);
 
 private:
     void sendCmd(DMMotor_Cmd cmd);
+    void writeRegU32(uint8_t rid, uint32_t value);
+    void ensureEscMode(DMMotor_EscCtrlMode esc_mode);
     void update();  ///< TIM 周期入口（对齐 DJIMotor::update）
     void packMit(uint8_t out[8], float p, float v, float kp, float kd, float t_ff) const;
     void decode(const uint8_t rx[8]);

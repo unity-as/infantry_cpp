@@ -7,25 +7,11 @@ extern "C" {
 
 // ======= 调试选项 =======
 
-// 达妙单电机冒烟：1=关闭 cmd/底盘/云台/射击，只在 robot 里注册一台 DM
-#define DM_MOTOR_TEST 1
-
-#if DM_MOTOR_TEST
-#define DM_TEST_CAN_HANDLE   (&hcan1)   // 接哪路 CAN 改这里（&hcan1 / &hcan2）
-#define DM_TEST_CONTROL_ID   0x01u      // 助手 CANID（控制基 ID）
-#define DM_TEST_FEEDBACK_ID  0x11u      // 助手 MasterID（反馈 ID）
-#endif
-
-// 开启任意项，可以单独启动不同的模块，方便调试（DM_MOTOR_TEST=1 时无效）
+// 开启任意项，可以单独启动不同的模块，方便调试
 #define GIMBAL_INIT_DEBUG 0
 #define CHASSIS_INIT_DEBUG 0
 #define SHOOT_INIT_DEBUG 0
 
-#if DM_MOTOR_TEST
-#define GIMBAL_INIT  0
-#define CHASSIS_INIT 0
-#define SHOOT_INIT   0
-#else
 #if (GIMBAL_INIT_DEBUG || CHASSIS_INIT_DEBUG || SHOOT_INIT_DEBUG)
 #define DEBUG_INIT_MODE 1
 #else
@@ -35,7 +21,6 @@ extern "C" {
 #define GIMBAL_INIT  !(DEBUG_INIT_MODE && !GIMBAL_INIT_DEBUG)// 云台初始化
 #define CHASSIS_INIT !(DEBUG_INIT_MODE && !CHASSIS_INIT_DEBUG) // 底盘初始化
 #define SHOOT_INIT   !(DEBUG_INIT_MODE && !SHOOT_INIT_DEBUG)// 射击初始化
-#endif
 // ======= 机器人参数 =======
 
 // 云台电机初始位置 — 编码器值
