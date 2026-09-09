@@ -10,7 +10,9 @@
 #include "can.h"
 
 #define CAN_MX_REGISTER_CNT 16     // 这个数量取决于CAN总线的负载
+#define CAN_MX_BUS_CNT 2           // 按句柄建表上限（F4 双路；不绑死 hcan1/2 名）
 #define MX_CAN_FILTER_CNT (2 * 14) // 最多可以使用的CAN过滤器数量,目前远不会用到这么多
+#define CAN_SLAVE_FILTER_BANK_START 14  // F4：CAN2 滤波银行起始（与 Master 共享 0–27）
 
 class CAN {
 public:
@@ -19,7 +21,7 @@ public:
     /// 初始化配置
     struct Config {
         CAN_HandleTypeDef* can_handle;  ///< CAN 句柄
-        uint32_t rx_id;                 ///< 接收 ID（0 表示 TX 组）
+        uint32_t rx_id;                 ///< 接收 ID（0 表示 TX 组，不加滤波）
     };
 
     void init(const Config& config);    ///< 替代 CANRegister（禁堆）
@@ -39,7 +41,6 @@ public:
 
 private:
     void addFilter();                   ///< 添加过滤器
-    static void serviceInit();          ///< 首次注册时初始化 CAN 硬件
 
     uint32_t rx_id_;                    ///< 接收 ID
     Callback callback_ = nullptr;       ///< 接收回调
