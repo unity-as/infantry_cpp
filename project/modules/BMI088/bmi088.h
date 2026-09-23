@@ -180,6 +180,7 @@ public:
 
     void setAccelRange(AccRange range);    ///< 替代 BMI088_Set_Accel_Range
     void setGyroRange(GyroRange range);    ///< 替代 BMI088_Set_Gyro_Range
+    void setGyroOffset(float x, float y, float z); ///< 设置传感器坐标系陀螺仪零偏 [rad/s]
     void readAccel();                      ///< 替代 BMI088_Read_Accel
     void readGyro();                       ///< 替代 BMI088_Read_Gyro
     void readTemp();                       ///< 替代 BMI088_Read_Temp

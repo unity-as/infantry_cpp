@@ -10,6 +10,10 @@ namespace {
 
 constexpr float DEG_TO_RAD = 0.017453292519943295f;
 constexpr float RAD_TO_DEG = 57.29577951308232f;
+constexpr uint16_t GYRO_CALIBRATION_BATCH_SAMPLES = 750;
+constexpr uint8_t GYRO_CALIBRATION_BATCH_COUNT = 8;
+constexpr uint32_t GYRO_CALIBRATION_TIMEOUT_US = 12000000;
+constexpr float GYRO_CALIBRATION_MAX_RANGE = 0.15f;
 
 // 快速逆平方根（保持 C 原版位操作，memcpy 规避严格别名 UB）
 float invSqrt(float x) {
@@ -291,7 +295,57 @@ void AHRS::preheat() {
 }
 
 void AHRS::calibrate() {
-    bmi088_.calibrate();
+    constexpr uint32_t sample_count =
+        GYRO_CALIBRATION_BATCH_SAMPLES * GYRO_CALIBRATION_BATCH_COUNT;
+    float gyro_sum[3] = {};
+    float gyro_max[3] = {};
+    float gyro_min[3] = {};
+    uint32_t start_tick = DWT_GetTimeline_us();
+    bool pass = false;
+
+    bmi088_.setGyroOffset(0.0f, 0.0f, 0.0f);
+
+    do {
+        memset(gyro_sum, 0, sizeof(gyro_sum));
+
+        for (uint8_t batch = 0; batch < GYRO_CALIBRATION_BATCH_COUNT; ++batch) {
+            for (uint16_t i = 0; i < GYRO_CALIBRATION_BATCH_SAMPLES; ++i) {
+                bmi088_.readGyro();
+
+                if (batch == 0 && i == 0) {
+                    gyro_max[0] = gyro_min[0] = bmi088_.gyro.x;
+                    gyro_max[1] = gyro_min[1] = bmi088_.gyro.y;
+                    gyro_max[2] = gyro_min[2] = bmi088_.gyro.z;
+                } else {
+                    if (bmi088_.gyro.x > gyro_max[0]) gyro_max[0] = bmi088_.gyro.x;
+                    if (bmi088_.gyro.x < gyro_min[0]) gyro_min[0] = bmi088_.gyro.x;
+                    if (bmi088_.gyro.y > gyro_max[1]) gyro_max[1] = bmi088_.gyro.y;
+                    if (bmi088_.gyro.y < gyro_min[1]) gyro_min[1] = bmi088_.gyro.y;
+                    if (bmi088_.gyro.z > gyro_max[2]) gyro_max[2] = bmi088_.gyro.z;
+                    if (bmi088_.gyro.z < gyro_min[2]) gyro_min[2] = bmi088_.gyro.z;
+                }
+
+                gyro_sum[0] += bmi088_.gyro.x;
+                gyro_sum[1] += bmi088_.gyro.y;
+                gyro_sum[2] += bmi088_.gyro.z;
+                DWT_Delay_ms(1);
+            }
+
+            bmi088_.readTemp();
+            imu_temp_.update(bmi088_.temperature);
+        }
+
+        pass = (gyro_max[0] - gyro_min[0] < GYRO_CALIBRATION_MAX_RANGE) &&
+               (gyro_max[1] - gyro_min[1] < GYRO_CALIBRATION_MAX_RANGE) &&
+               (gyro_max[2] - gyro_min[2] < GYRO_CALIBRATION_MAX_RANGE);
+    } while (!pass &&
+             (DWT_GetTimeline_us() - start_tick) < GYRO_CALIBRATION_TIMEOUT_US);
+
+    bmi088_.setGyroOffset(
+        gyro_sum[0] / sample_count,
+        gyro_sum[1] / sample_count,
+        gyro_sum[2] / sample_count);
+
     initQuaternion();
     DWT_GetDeltaT(&dwt_cnt_);
 }

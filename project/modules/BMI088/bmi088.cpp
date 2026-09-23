@@ -52,6 +52,12 @@ void BMI088::setGyroRange(GyroRange range) {
     DWT_Delay_ms(1);
 }
 
+void BMI088::setGyroOffset(float x, float y, float z) {
+    gyro_offset_[0] = x;
+    gyro_offset_[1] = y;
+    gyro_offset_[2] = z;
+}
+
 /*---------- 初始化 ----------*/
 
 uint8_t BMI088::accInit() {
