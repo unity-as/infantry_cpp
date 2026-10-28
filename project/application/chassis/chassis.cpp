@@ -13,15 +13,15 @@ static ChassisMotion chassis_inst;
 PID::Config pid_velocity_config =
 {
     .kp = 0.05f,
-    .ki = 0.0008f,
+    .ki = 0.8f,
     .kd = 0.0f,
     .mode = PID::Mode::Position,   // 位置式：反算抗饱和需要可操作的累加积分
     .features = PID::FeatureOutputLimit
               | PID::FeatureIntegralLimit,
-    .integral_limit = 20000,
+    .integral_limit = 20.0f,
     .output_min = -20.0f,
     .output_max = 20.0f,
-    .period = 1,                 // 速度环 1ms
+    .period = 0.001f,            // 速度环 1 ms，PID 周期单位为秒
 };
 
 static void Chassis_Task(void *arg)
@@ -78,7 +78,7 @@ void Chassis_Init(void)
             .motor_id_rr = 4,
             .reduction_ratio = DJIM_REDUCTION_RATIO_M3508,
             .pid_velocity = pid_velocity_config,
-            .back_calc_coef = 0.07f,    // ≈1/Ti=ki/kp，实现时调
+            .back_calc_coef = 0.00007f, // 回灌积分改用误差·s，旧毫秒系数除以 1000
         },
         .tim_handle = &htim5,       // 速度环+功率+发电流跑在此定时器，注册先于 dji_motor
     };

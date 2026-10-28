@@ -1,135 +1,76 @@
 # PID 模块
 
-## 概述
-
-通用 PID 控制器模块，位于 `alg/` 纯算法层，**无外设依赖**。支持位置式 / 增量式两种模式，以及 8 个可选功能特性（滤波、限幅、死区、变增益、微分先行、前馈等）。
-
-## 依赖
-
-无外部依赖（仅标准库 `malloc` / `string`）。
-
-## 数据结构
-
-### 初始化配置 `PID_Init_Config_s`
-
-| 字段 | 说明 |
-|------|------|
-| kp / ki / kd | 比例 / 积分 / 微分系数 |
-| mode | `PID_MODE_POSITION` 或 `PID_MODE_DELTA` |
-| features | 功能特性位掩码（见下表） |
-| period | 采样周期（ms），**必须与实际调用周期一致** |
-| integral_limit | 积分限幅（仅位置式） |
-| derivative_limit | 微分限幅 |
-| output_min / output_max | 输出限幅上下界 |
-| dead_zone | 死区范围 |
-| feedforward_gain | 前馈增益（0 时默认 1.0） |
-| filter_alpha | 滤波系数 (0~1)，越小滤波越强（≤0 时默认 0.3） |
-| kp_extra / kd_extra | 变增益斜率（仅 kp/kd，ki 不支持变增益） |
-
-### 运行时实例 `PID_Instance`
-
-由 `PID_Init()` 返回，后续所有操作都通过该指针。内部字段（integral、last_error、last_feedback、output 等）不应直接读写，统一走 API。
-
-## 两种工作模式
-
-### 位置式 `PID_MODE_POSITION`
-
-```
-integral += error · period            （累加器）
-output    = kp·error + ki·integral + kd·derivative
-```
-
-- `integral` 是**累加器**，跨周期累积。
-- 输出是**绝对量**。
-- 抗积分饱和：条件积分法（见下文「关键实现细节」）。
-
-### 增量式 `PID_MODE_DELTA`
-
-```
-Δoutput = kp·(error - last_error) + ki·(error·period) + kd·二阶差分
-output += Δoutput
-```
-
-- `integral` 字段**不是累加器**，每个周期被覆盖为 `error·period`（`PID_Reset_Integral` 对它无意义）。
-- 输出是**增量累积**，且每周期被输出限幅钳住，天然不会像位置式那样积分饱和失控。
-- 适合执行器带积分特性（如速度环驱动电流环）或需要无扰切换的场景。
-
-> ⚠️ 两种模式下 `integral` 字段语义不同：位置式 = 累加器，增量式 = 当周期项。跨模式理解会出错。
-
-## 功能特性
-
-`features` 是位掩码，通过 `PID_Set_Features` / `PID_Clear_Features` 开关。
-
-| 特性 | 位 | 说明 | 适用 |
-|------|----|------|------|
-| `PID_FEATURE_INTEGRAL_LIMIT` | 0x01 | 积分限幅 | 仅位置式 |
-| `PID_FEATURE_DERIVATIVE_LIMIT` | 0x02 | 微分限幅 | 两者 |
-| `PID_FEATURE_OUTPUT_LIMIT` | 0x04 | 输出限幅（位置式同时触发抗积分饱和） | 两者 |
-| `PID_FEATURE_DEAD_ZONE` | 0x08 | 死区：`\|error\| < dead_zone` 时 error 归零 | 两者 |
-| `PID_FEATURE_FILTER` | 0x10 | 反馈一阶低通滤波 | 两者 |
-| `PID_FEATURE_VARIABLE_GAIN` | 0x20 | 变增益：kp/kd 随 `\|error\|` 线性增大 | 两者 |
-| `PID_FEATURE_DERIVATIVE_ON_MEASUREMENT` | 0x40 | 微分先行（对测量值微分，抑制设定值阶跃的微分冲击） | 两者 |
-| `PID_FEATURE_FEEDFORWARD` | 0x80 | 前馈 | 两者 |
-
-## API
-
-```c
-PID_Instance * PID_Init(PID_Init_Config_s *config);              // 初始化，返回实例
-void PID_Update(PID_Instance *instance, float feedback);         // 周期更新，结果写入 output
-void PID_Set_Parameters(PID_Instance *instance, float kp, float ki, float kd);
-void PID_Set_Setpoint(PID_Instance *instance, float setpoint);
-void PID_Set_Feedforward(PID_Instance *instance, float feedforward);
-void PID_Reset(PID_Instance *instance);                          // 复位全部状态
-void PID_Reset_Integral(PID_Instance *instance);                 // 仅清积分（=置 0）
-PID_FEATURE PID_Get_Features(PID_Instance *instance, PID_FEATURE f);
-void PID_Set_Features(PID_Instance *instance, PID_FEATURE f);
-void PID_Clear_Features(PID_Instance *instance, PID_FEATURE f);
-```
+通用位置式／增量式 PID。类、配置字段及功能枚举以 [pid.h](pid.h) 为准，
+成员实现见 [pid.cpp](pid.cpp)。仅依赖 C 数学与整数类型头，无外设、HAL、RTOS 或堆分配依赖。
+对象生命周期遵循 [API 约定](../../../../.claude/conventions/api.md)。
 
 ## 使用方式
 
-```c
-PID_Init_Config_s cfg = {
-    .kp = 4.0f, .ki = 0.0f, .kd = 0.01f,
-    .mode = PID_MODE_POSITION,
-    .features = PID_FEATURE_OUTPUT_LIMIT | PID_FEATURE_DERIVATIVE_ON_MEASUREMENT,
-    .output_min = -360.0f, .output_max = 360.0f,
-    .period = 10,                 // 每 10ms 调用一次 PID_Update
-};
-PID_Instance *pid = PID_Init(&cfg);
+```cpp
+#include "pid.h"
 
-// 周期任务（调用周期必须 = period ms）
-PID_Set_Setpoint(pid, target);
-PID_Update(pid, feedback);
-current_cmd = pid->output;
+static PID controller;
+
+void initializeController() {
+    PID::Config config{};
+    config.kp = 4.0f;
+    config.kd = 0.00001f;
+    config.mode = PID::Mode::Position;
+    config.features = PID::FeatureOutputLimit | PID::FeatureDerivativeOnMeasurement;
+    config.output_min = -360.0f;
+    config.output_max = 360.0f;
+    config.period = 0.01f;
+    controller.init(config);
+    controller.reset();
+}
+
+// 每 10 ms 调用一次；返回值交给应用，由应用负责执行器单位与限幅。
+float stepController(float target, float feedback) {
+    controller.setSetpoint(target);
+    controller.update(feedback);
+    return controller.output_;
+}
 ```
 
-## 关键实现细节
+`init()` 写入配置，不清除已有运行历史；重新初始化时需要清理历史的，由调用者显式 `reset()`。
+`reset()` 清除积分、误差／反馈历史和输出，但保留目标、配置及前馈当前值／历史值。
+增量式启用前馈时，复位后的首拍仍会使用此前的前馈历史；它不是完整的冷启动复位。
 
-### 微分项
+## 参数与时间口径
 
-- 普通：`derivative = (error - last_error) / period`（对误差微分）
-- 微分先行：`derivative = -(feedback - last_feedback) / period`（对测量值微分，设定值阶跃不产生微分冲击）
-- 增量式的微分是二阶差分：`(error - 2·last_error + last_2_error) / period`
+- `period` 为 `float` 秒，支持亚毫秒周期和大于 255 ms 的周期；应与实际调用周期一致。
+  非正数或 NaN／Inf 按 `0.001f`（1 ms）处理。积分乘以秒数，微分除以秒数，`ki/kd` 按秒整定。
+  从旧毫秒配置等价迁移时：`period`、`kd`、`kd_extra`、`integral_limit` 除以 1000，
+  `ki`、`derivative_limit` 乘以 1000，比例系数及输出限幅不变；已有积分状态也须除以 1000，或显式 `reset()`。
+  `setIntegral()`／`integral_` 使用误差单位·s，微分限幅使用误差单位/s。
+- `feedforward_gain == 0` 按 1.0 处理；需要停用前馈时清除 `FeatureFeedforward`。
+- `filter_alpha <= 0` 按 0.3 处理，`> 1` 钳为 1；滤波仅在 `FeatureFilter` 开启时作用于反馈。
+- 除周期的默认处理外，`init()` 不检查其他参数是否合法，也不拒绝其 NaN／Inf；没有初始化成功或输入有效状态码。
+  配置、输入的有限性与限幅上下界由调用者保证。
 
-### 前馈
+## 模式与功能边界
 
-- 位置式：`output += feedforward · feedforward_gain`（直接加）
-- 增量式：`output += (feedforward - last_feedforward) · feedforward_gain`（加增量）
+位置式输出为本拍的绝对控制量；`integral_` 为跨拍累积误差。
+增量式将本拍增量累加到 `output_`，`integral_` 每拍覆盖为 `error * period`，不是积分历史。
+两种模式的参数与历史含义不同，切换配置不自动实现无扰交接。
 
-### 抗积分饱和（仅位置式）
+可选功能包括积分限幅、微分限幅、输出限幅、死区、反馈滤波、变增益、微分先行、前馈和梯形积分。
+积分限幅与梯形积分只作用于位置式；增量式启用输出限幅时，对累积输出限幅。
+微分先行在位置式使用反馈一阶差分，在增量式使用反馈二阶差分。
+位置式前馈叠加当前值，增量式叠加前后两拍前馈的差值。
 
-采用**条件积分法**：开启 `OUTPUT_LIMIT` 且输出已饱和、误差仍在把输出往外推时，冻结积分。判断用**上一周期**的 `output`。
+## 抗饱和与外部限幅
 
-> 局限：只处理**自身**输出限幅导致的饱和，**不感知外部的二次限流**（例如底盘功率控制对电流的缩放）。这种场景需要在库外拿真实输出回灌做反算（back-calculation），库内没有此能力。
+位置式启用 `FeatureOutputLimit` 时，按上一拍 `output_` 判断是否冻结继续推动饱和的积分。
+若应用在 PID 之后再次限幅，可在取得实际限幅结果后调用 `backCalcAntiWindup(limited_output)`。
 
-## 注意事项 / 已知问题
+该接口仅在新输出绝对值小于 PID 当前输出绝对值时回灌：位置式在 `ki != 0` 时调整积分，
+两种模式都会更新 `output_`。回灌不会再次执行积分限幅；调用者须保证参数单位一致、数值有效，
+且传入值对应本次执行的限幅结果。它不自动获取功率控制或执行器的实际输出。
 
-1. **`period` 必须等于实际调用周期**（单位 ms，uint8_t，最大 255）。它同时影响积分（×period）和微分（÷period），配错会导致 ki/kd 实际作用强度改变。
-2. **两种模式 `integral` 语义不同**（见上文），不要跨模式理解。
-3. **`feedforward_gain == 0` 会被静默置为 1.0**（当作「未设置」处理）。
-4. **`filter_alpha ≤ 0` 默认 0.3，`> 1` 钳到 1.0**；该默认值在未开 `FILTER` 特性时也会写入（无副作用）。
-5. **`period == 0` 默认 1**（即 1ms）。
-6. **`PID_Reset` 不重置 `last_feedforward`**：复位后立即在增量式下用前馈，首帧可能多一个 `-last_feedforward·gain` 的假增量（罕见，一般无感）。
-7. **`PID_Init` 不检查 `config` / `malloc` 是否为 NULL**（嵌入式 malloc 极少失败，故省略）。
-8. **`pid_test.h` 是过时副本**：其 `PID_Instance` / `PID_Init_Config_s` 缺 `feedforward` 相关字段，枚举名 `PID_FEATURE_FEED_FORWARD` 与 `pid.h` 的 `PID_FEATURE_FEEDFORWARD` 不一致；`pid_test.c` 引的是这份旧定义，因只测 `PID_Set_Parameters` 未暴露。建议测试直接 `#include "pid.h"`。
+## 本项目移植
+
+实现照搬 `leg_main` 提交 `12b4395`。现有底盘、云台、自瞄、射击和温控配置按上述规则换算，
+只改变时间单位，保留旧配置的逐拍等效作用；省略周期的旧配置按原默认 1 ms 显式写为 `0.001f`。
+这不表示重新标定了实际调度周期：云台位置环仍按原分频运行，温控仍约每 750 ms 更新。
+底盘功率回灌还会直接修改积分，其单位换算见 [底盘说明](../../../application/chassis/README.md)。

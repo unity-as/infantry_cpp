@@ -1,9 +1,10 @@
 /**
  * @file    kalman_filter.cpp
- * @brief   卡尔曼滤波器模板实现 + 显式实例化
- * @note    模板定义集中于此，通过显式实例化支持本项目用到的维度组合，
- *          替代 C 版运行时 malloc 缓冲与手写 CMSIS 包装。
+ * @brief   通用 KF/EKF 模板成员定义，模型由调用方提供。
  */
+#ifndef KALMAN_FILTER_TEMPLATE_IMPLEMENTATION
+#define KALMAN_FILTER_TEMPLATE_IMPLEMENTATION
+
 #include "kalman_filter.h"
 
 #include "matrix.hpp"
@@ -46,16 +47,6 @@ void KalmanFilter<_n, _m>::reset(const float* x_new, const float* P_new) {
     }
 }
 
-template <int _n, int _m>
-void KalmanFilter<_n, _m>::setPredictCallback(PredictCallback cb) {
-    predict_callback_ = cb;
-}
-
-template <int _n, int _m>
-void KalmanFilter<_n, _m>::setUpdateCallback(UpdateCallback cb) {
-    update_callback_ = cb;
-}
-
 // ============================== 线性卡尔曼滤波 ==============================
 
 template <int _n, int _m>
@@ -90,34 +81,62 @@ bool KalmanFilter<_n, _m>::update(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>
 // ============================== EKF ==============================
 
 template <int _n, int _m>
-void KalmanFilter<_n, _m>::predictEKF(const Matrixf<_n, _n>& Q, const float* u) {
-    if (!predict_callback_) return;
-    Matrixf<_n, _n> F;
-    predict_callback_(*this, F[0], u);   // 回调计算 F（写入 F 原始缓冲）
-    predict(F, Q);
+void KalmanFilter<_n, _m>::predictEKF(const Matrixf<_n, 1>& predicted_state,
+                                    const Matrixf<_n, _n>& F, const Matrixf<_n, _n>& Q) {
+    x_ = predicted_state;
+    P_ = F * P_ * F.trans();
+    if (lambda_ < 1.0f) P_ *= lambda_;
+    P_ += Q;
 }
 
 template <int _n, int _m>
-bool KalmanFilter<_n, _m>::updateEKF(const Matrixf<_m, 1>& z, const Matrixf<_m, _m>& R, const float* u) {
-    if (!update_callback_) return false;
-
-    // 回调计算 H 和 h(x)（写入 H/h_x 原始缓冲；注：C 版此处第 4 参传的是 u 而非 z，原样保留）
-    Matrixf<_m, _n> H;
-    Matrixf<_m, 1> h_x;
-    update_callback_(*this, H[0], h_x[0], u);
-
+bool KalmanFilter<_n, _m>::updateEKF(const Matrixf<_m, 1>& z,
+                                   const Matrixf<_m, 1>& predicted_measurement,
+                                   const Matrixf<_m, _n>& H, const Matrixf<_m, _m>& R) {
     // 1. y = z - h(x)
-    Matrixf<_m, 1> y = z - h_x;
-    // 2. S = H × P × H^T + R
-    Matrixf<_m, _m> S = H * P_ * H.trans() + R;
+    Matrixf<_m, 1> y = z - predicted_measurement;
+    // 2. H 随状态变化，转置仅在本轮复用，不跨轮缓存。
+    const Matrixf<_n, _m> h_trans = H.trans();
+    Matrixf<_m, _m> S = H * P_ * h_trans + R;
     // 3. K = P × H^T × S^(-1)
     Matrixf<_m, _m> S_inv = S.inv();
     if (S_inv == Matrixf<_m, _m>::zeros()) return false;
-    Matrixf<_n, _m> K = P_ * H.trans() * S_inv;
+    Matrixf<_n, _m> K = P_ * h_trans * S_inv;
     // 4. x = x + K × y
     x_ += K * y;
-    // 5. P = (I - K × H) × P
+    // 5. 保留 (I - K×H)×P 的运算顺序，避免 P-K×(H×P) 的浮点消减差异。
     P_ = (Matrixf<_n, _n>::eye() - K * H) * P_;
+    return true;
+}
+
+template <int _n, int _m>
+template <uint16_t _h_cols>
+bool KalmanFilter<_n, _m>::updateEKF(const Matrixf<_m, 1>& z,
+                                   const Matrixf<_m, 1>& predicted_measurement,
+                                   const Matrixf<_m, _h_cols>& H, const Matrixf<_m, _m>& R) {
+    static_assert(_h_cols > 0 && _h_cols < _n, "紧凑 H 必须省略至少一列恒零状态列");
+    Matrixf<_m, 1> y = z - predicted_measurement;
+    const Matrixf<_h_cols, _m> h_trans = H.trans();
+
+    // 只搬运一次 P 的前几列；包括全部状态行，保留未直接观测状态的交叉协方差。
+    Matrixf<_n, _h_cols> p_columns = P_.template block<_n, _h_cols>(0, 0);
+    // p_columns 的前 _h_cols 行已连续存放，直接以 CMSIS 视图使用，避免再复制方块。
+    const arm_matrix_instance_f32 p_leading = {_h_cols, _h_cols, p_columns[0]};
+    Matrixf<_m, _h_cols> hp_leading;
+    arm_mat_mult_f32(&H.arm_mat_, &p_leading, &hp_leading.arm_mat_);
+    Matrixf<_m, _m> S = hp_leading * h_trans + R;
+    Matrixf<_m, _m> S_inv = S.inv();
+    if (S_inv == Matrixf<_m, _m>::zeros()) return false;
+
+    const Matrixf<_n, _m> K = p_columns * h_trans * S_inv;
+    x_ += K * y;
+    // 保留 (I-KH)P，尾部恒零列对应的单位阵列不参与 K×H 及减法。
+    const Matrixf<_n, _h_cols> kh = K * H;
+    Matrixf<_n, _n> correction = Matrixf<_n, _n>::eye();
+    for (int row = 0; row < _n; ++row)
+        for (int col = 0; col < _h_cols; ++col)
+            correction[row][col] -= kh[row][col];
+    P_ = correction * P_;
     return true;
 }
 
@@ -137,9 +156,4 @@ float KalmanFilter<_n, _m>::chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m,
     return chi[0][0];
 }
 
-// ============================== 显式实例化 ==============================
-// 本项目仅 ahrs 使用，维度组合由 AHRS_USE_MAGNETOMETER 决定（见 ahrs.h）：
-//   无磁力计 n=6, m=3；有磁力计 n=7, m=6。
-
-template class KalmanFilter<6, 3>;
-template class KalmanFilter<7, 6>;
+#endif // KALMAN_FILTER_TEMPLATE_IMPLEMENTATION

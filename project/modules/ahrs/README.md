@@ -1,7 +1,11 @@
 # AHRS 模块
 
-基于扩展卡尔曼滤波（EKF）的姿态解算模块，BMI088 六轴 IMU，可选 IST8310 磁力计融合。
-C板专属模块，对非C板项目无移植性
+基于扩展卡尔曼滤波（EKF）的姿态解算模块，BMI088 **六轴** IMU（本工程已去掉磁力计）。
+RoboMaster C 板（STM32F407，BMI088 使用 SPI1，ACC_CS=PA4、GYRO_CS=PB0）。
+
+实现取自 `leg_main` 提交 `12b4395`；仅适配本板外设与 `math.h` 软件欧拉角。
+
+AHRS 拥有姿态模型与传感器处理；[通用 KF/EKF](../alg/kalman/PLAN.md) 只执行矩阵递推。
 
 ## 依赖关系
 
@@ -16,14 +20,23 @@ AHRS (姿态解算)
 ```
 
 **关键规则**：
-1. `DWT_Init()` 必须在 `AHRS_Register()` 之前调用
-2. `Robot_Init()` 中的初始化顺序：`DWT_Init()` → `Remote_Init()` → `AHRS_Register()`
+1. `DWT_Init()` 必须在 `AHRS::init()` 之前调用。
+2. `AHRS::init()` 同步完成预热、陀螺仪零偏校准和初始姿态计算；返回后 AHRS 才可使用。
+
+## 启动预热与校准
+
+- 默认预热上限为 15 秒；温度需要连续三次处于 `40±1°C`，检查周期为 750 ms。
+- 预热超时后仍继续校准，避免传感器异常导致启动永久卡住。
+- AHRS 将 BMI088 零偏清零后采集 6000 个陀螺仪样本，分为 8 组，每组 750 点、间隔 1 ms。
+- 每组结束后读取一次温度并更新温控，因此校准期间温控不会停止超过约 750 ms。
+- 三轴峰峰值都小于 `0.15 rad/s` 时校准通过；否则整轮重采，总超时为 12 秒。
+- 校准通过或超时后，最后一轮 6000 点的平均值写入 BMI088 作为传感器坐标系零偏。
 
 ## 坐标系定义
 
 ### 机体坐标系 (Body Frame)
 
-默认正方向（以 PCB 上 "R" 字为参考）：
+默认正方向（C 板以 PCB 上 "R" 字为参考）：
 
 ```
         X (前)
@@ -88,56 +101,30 @@ EKF 在机体坐标系内工作，输出四元数描述机体到世界坐标系�
 
 ### 输入方式
 
-在 `AHRS_Init_Config_s` 中填入板子相对云台的姿态角（单位：度）：
+在 `AHRS::Config` 中填入板子相对云台的姿态角（单位：度）：
 
 ```c
-AHRS_Init_Config_s config = {
+AHRS::Config config = {
     .board_yaw   = 0.0f,  // 板子偏航角 [deg]（正值=板子逆时针转）
     .board_pitch = 0.0f,  // 板子俯仰角 [deg]（正值=板子低头）
     .board_roll  = 0.0f,  // 板子横滚角 [deg]（正值=板子右倾）
 };
 ```
 
-内部自动取反构建旋转矩阵，让 AHRS 输出归零。
+`board_*` 以度直接代入 `Rz(yaw)*Ry(pitch)*Rx(roll)`，模块不对输入取反。
 
 旋转矩阵由 ZYX 欧拉角构建（先 yaw → 再 pitch → 再 roll）。
 
-### 如何确定安装角
-
-**规则：填入板子相对于云台的实际姿态角（正值），内部自动取反补偿**
-
-| 板子实际姿态 | config 设置 |
-|-------------|-----------|
-| 板子左转 90° | board_yaw = 90° |
-| 板子前倾 30° | board_pitch = 30° |
-| 板子右倾 45° | board_roll = 45° |
-
-**实验法**（最可靠）：
-1. config 全设 0，烧录
-2. 板子装上云台，调到你认为"水平"的位置
-3. 在 Ozone 中查看 euler 输出：比如 roll=5°, pitch=-3°
-4. 设置 board_roll=5°, board_pitch=-3°（直接填观察到的值）
-5. 重新烧录验证：euler 应该接近 roll≈0°, pitch≈0°
-
-注意：yaw 只影响航向起点，不影响 roll/pitch 精度。水平放置时 yaw 无法确定（万向锁），设 0 即可。
-
-### 常见安装方式参考
-
-以下为板子相对于云台的安装角度（已验证）：
-
-| 板子安装方式 | board_yaw | board_pitch | board_roll |
-|---|---|---|---|
-| 正常水平安装 | 0 | 0 | 0 |
-| 板子左转 90° 安装 | 90 | 0 | 0 |
-| 板子前倾 45° 安装 | 0 | 45 | 0 |
-| 板子右倾 30° 安装 | 0 | 0 | 30 |
+当前安装角由应用的 `Cmd_Init()` 提供；移植保留本项目已有配置，实际方向需在板上核验。
 
 ## EKF 配置参数
 
 ### 状态向量
 
 - 无磁力计：`x = [q0, q1, q2, q3, bx, by]`（6 维）
-- 有磁力计：`x = [q0, q1, q2, q3, bx, by, bz]`（7 维）
+
+六轴 EKF 的 `bx/by` 表示机体系残余零偏，直接从旋转后的机体系角速度中扣除，不再旋转估计零偏。
+启动校准写入 BMI088 的传感器坐标系零偏仍按原流程处理。
 
 ### 过程噪声 Q
 
@@ -175,17 +162,41 @@ EKF 更新 (加速度计观测 → 修正四元数 + 估计零偏)
 四元数归一化 → 欧拉角输出
 ```
 
-## 回调函数
+## 模型边界
 
-- `AHRS_Predict_Callback`：计算 F 矩阵（6×6 或 7×7）
-  - 左上 4×4：四元数-角速度耦合（使用 bias 补偿后角速度）
-  - 右上 4×2：四元数-零偏耦合（使用四元数状态）
-  - 右下 2×2：单位阵（零偏随机游走）
-- `AHRS_Update_Accel_Callback`：计算 H 矩阵和 h(x)
-  - h(x) = R(q)^T × [0, 0, 1]（预测的归一化重力方向）
-  - H = ∂h/∂x（3×6 Jacobian，偏置列全零）
+`buildTransition()` 生成六轴姿态模型的 F，`observeGravity()` 生成机体系单位重力观测 h(x) 及 H。
+AHRS 在调用 KF 前显式准备模型值和 Jacobian，KF 不调用姿态回调。
+
+为单独对比职责分离，本分支仍向 `predictEKF()` 提供旧版 `F*x` 预测值，尚未引入独立非线性积分；
+这只是保留旧实现的数值行为，不表示通用 EKF 必须用 Jacobian 乘状态。
+安装旋转、机体系残余零偏、Q/R 构造、加速度低通、四元数归一化及输出转换保持基线流程。
 
 ## 宏开关
 
-- `AHRS_USE_MAGNETOMETER`：启用磁力计融合（状态扩展到 7 维）
-- `AHRS_DISABLE_RTOS`：禁用 RTOS，改为裸机模式（需外部调用 `AHRS_Task()`）
+- 六轴 EKF（本工程固定 `AHRS_USE_MAGNETOMETER=0`，无磁力计路径）
+- BMI088：SPI1，ACC_CS=`PA4`，GYRO_CS=`PB0`；加热：TIM10_CH1 / `PF6`
+- `AHRS_DISABLE_RTOS`：禁用 RTOS，改为裸机模式（需外部调用 `AHRS::task()`）
+
+## 软件欧拉角与耗时观察
+
+STM32F407 没有 CORDIC 外设（[ST DS8626 Rev 12，表 2 与图 5](https://www.st.com/resource/en/datasheet/stm32f407ig.pdf)），
+roll/yaw 直接使用 `math.h` 的 `atan2f`，pitch 使用 `asinf`／边界钳位；不引入 H7 CORDIC 类型、驱动或硬件对照路径。
+
+保留源实现的 DWT 任务耗时量 `ahrs_task_elapsed_us`、`ahrs_task_max_us`、`ahrs_task_period_us`。
+`AHRS_ENABLE_PROFILING` 默认 1，`ahrs_profile` 记录 IMU、EKF、软件欧拉角的本拍和累计最大耗时；置 0 后仅移除分段计时。
+单位均为 us，耗时包含抢占，不含末尾 `osDelay(1)`；静态源码和构建通过不能证明板上 1 kHz 最坏执行时间。
+
+## 本次移植验证（2026-10-28）
+
+源版本为 `leg_main@12b4395`，移植前基线为 `infantry_cpp@e822d5e`。
+PID 与 KF/EKF 源码在统一换行符后与源版本一致；AHRS 差异限于 F407 外设、软件欧拉角及去除 CORDIC 对照。
+
+- Debug ARM 构建通过，生成 `build/infantry.elf`、`.hex`、`.bin`；RAM 80112 B、FLASH 117852 B。
+- 使用源项目 `test_pid.py` 验证真实 C++ PID 的秒制积分、微分、两种模式、限幅、回灌及非法周期默认值，通过。
+- 使用源项目 `test_kalman_filter.py` 与真实 CMSIS 标量源码，在 `-O0`、`-O2` 下各通过 3728262 次检查；
+  包括 5400 次随机更新及 40000 次递推，稠密与紧凑 H 的状态、协方差与原运算顺序逐位一致。
+- 从移植前后源码提取 11 组实际 PID 配置，在相同输入下完成 132000 次输出／积分对照，包含底盘功率回灌；
+  满足 `abs(error) <= 5e-5*(1+abs(reference))`，最大输出绝对差约 0.000244、最大积分绝对差约 0.0000534。
+
+本机测试驱动、移植前快照位于 Git 忽略的 `build/port-leg-ahrs-pid/`；原算法测试来自源项目的 `tools/host/tests/`。
+本次未烧录；实车姿态、预热与温控效果、控制稳定性、目标板执行时间和栈余量均未验证。

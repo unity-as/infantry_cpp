@@ -36,8 +36,8 @@ public:
         float kd;                  // 微分系数
         Mode mode;                 // PID 模式
         uint16_t features;        // 功能开关（位标志，直接 | 组合）
-        float integral_limit;      // 积分限幅值
-        float derivative_limit;    // 微分限幅值
+        float integral_limit;      // 积分限幅值（误差单位·s）
+        float derivative_limit;    // 微分限幅值（误差单位/s）
         float output_min;          // 输出最小值
         float output_max;          // 输出最大值
         float dead_zone;           // 死区范围
@@ -45,7 +45,7 @@ public:
         float filter_alpha;        // 滤波系数 (0~1)，越小滤波越强
         float kp_extra;            // 变增益比例系数
         float kd_extra;            // 变增益微分系数
-        uint8_t period;            // 采样周期 ms
+        float period;              // 采样周期 s
     };
 
     // —— 实例变量 ——
@@ -74,7 +74,7 @@ private:
     float last_2_feedback_ = 0.0f;
     Mode mode_ = Mode::Position;
     uint16_t features_ = FeatureNone;
-    uint8_t period_ = 1;
+    float period_ = 0.001f;
 
     // —— 实例函数 ——
 public:

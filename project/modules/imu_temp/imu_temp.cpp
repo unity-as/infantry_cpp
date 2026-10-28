@@ -9,13 +9,15 @@ void IMUTemp::init(const Config& config) {
 
     PID::Config pid_cfg = {
         .kp = 2500.0f,
-        .ki = 20.0f,
+        .ki = 20000.0f,
         .kd = 0.0f,
         .mode = PID::Mode::Position,
         .features = PID::FeatureIntegralLimit | PID::FeatureOutputLimit | PID::FeatureTrapezoidIntegral,
-        .integral_limit = 30.0f,
+        .integral_limit = 0.03f,
         .output_min = 0.0f,
         .output_max = 2000.0f,
+        // 保留旧 1 ms PID 的等效作用；AHRS 实际约每 750 ms 更新温控。
+        .period = 0.001f,
     };
     pid_.init(pid_cfg);
     pid_.setSetpoint(IMU_TEMP_TARGET);

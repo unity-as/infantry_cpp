@@ -43,13 +43,14 @@ void Shoot_Init(void)
         .reduction_ratio = 19.0f,
         .pid_velocity = {
             .kp = 0.01f,
-            .ki = 0.0001f,
+            .ki = 0.1f,
             .kd = 0.0f,
             .mode = PID::Mode::Delta,
             .features = PID::FeatureOutputLimit | PID::FeatureFilter,
             .output_min = -20.0f,
             .output_max = 20.0f,
             .filter_alpha = 0.3f,
+            .period = 0.001f,
         },
     };
 
@@ -79,12 +80,14 @@ void Shoot_Init(void)
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit,
             .output_min = -360.0f, .output_max = 360.0f,
+            .period = 0.001f,
         },
         .pid_velocity = {
             .kp = 0.01f, .ki = 0.0f, .kd = 0.0f,
             .mode = PID::Mode::Delta,
             .features = PID::FeatureOutputLimit,
             .output_min = -10.0f, .output_max = 10.0f,
+            .period = 0.001f,
         },
     };
     motor_mag.init(cfg_mag);

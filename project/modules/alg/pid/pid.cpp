@@ -12,7 +12,7 @@ void PID::init(const Config& config) {
     kd_ = config.kd;
     mode_ = config.mode;
     features_ = config.features;
-    period_ = (config.period == 0) ? 1 : config.period;
+    period_ = (isfinite(config.period) && config.period > 0.0f) ? config.period : 0.001f;
 
     integral_limit_ = config.integral_limit;
     derivative_limit_ = config.derivative_limit;

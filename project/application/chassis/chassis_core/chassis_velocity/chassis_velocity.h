@@ -27,7 +27,7 @@ public:
         uint8_t motor_id_rr;            // 右后轮电机ID
         float reduction_ratio;          // 减速比
         PID::Config pid_velocity;       // 位置式速度环 PID 配置（四轮共用）
-        float back_calc_coef;           // 反算增益 ≈1/Ti（=ki/kp），实现时调
+        float back_calc_coef;           // 每拍电流差到积分回灌量的系数 [误差·s/A]
     };
 
     void init(const Config& config);                           // 替代 ChassisVelocity_Register
