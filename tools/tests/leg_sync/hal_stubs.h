@@ -6,13 +6,16 @@
 #include <vector>
 
 struct TIM_TypeDef {};
-inline TIM_TypeDef test_timers[12];
+inline TIM_TypeDef test_timers[18];
 #define TIM1 (&test_timers[1])
 #define TIM5 (&test_timers[5])
 #define TIM8 (&test_timers[8])
 #define TIM9 (&test_timers[9])
 #define TIM10 (&test_timers[10])
 #define TIM11 (&test_timers[11])
+#define TIM15 (&test_timers[15])
+#define TIM16 (&test_timers[16])
+#define TIM17 (&test_timers[17])
 struct TIM_Base_InitTypeDef {
     uint32_t Prescaler, Period, RepetitionCounter;
 };
@@ -21,13 +24,18 @@ struct TIM_HandleTypeDef {
     TIM_Base_InitTypeDef Init;
 };
 inline TIM_HandleTypeDef htim5{TIM5, {167, 999, 0}};
-struct RCC_TypeDef { uint32_t CFGR; };
-inline RCC_TypeDef test_rcc{0x1000u | 0x8000u};  // APB1 /4, APB2 /2.
+inline TIM_HandleTypeDef htim16{TIM16, {167, 999, 0}};
+struct RCC_TypeDef { uint32_t CFGR, D2CFGR; };
+inline RCC_TypeDef test_rcc{0x1000u | 0x8000u, 0x50u | 0x400u}; // APB1 /4, APB2 /2.
 #define RCC (&test_rcc)
 #define RCC_CFGR_PPRE1 0x1C00u
 #define RCC_CFGR_PPRE2 0xE000u
 #define RCC_CFGR_PPRE1_DIV1 0u
 #define RCC_CFGR_PPRE2_DIV1 0u
+#define RCC_D2CFGR_D2PPRE1 0x70u
+#define RCC_D2CFGR_D2PPRE2 0x700u
+#define RCC_D2CFGR_D2PPRE1_DIV1 0u
+#define RCC_D2CFGR_D2PPRE2_DIV1 0u
 inline uint32_t test_pclk1 = 42000000u, test_pclk2 = 84000000u;
 inline uint32_t HAL_RCC_GetPCLK1Freq() { return test_pclk1; }
 inline uint32_t HAL_RCC_GetPCLK2Freq() { return test_pclk2; }
@@ -75,6 +83,7 @@ private:
 };
 
 struct CAN_HandleTypeDef {};
+using FDCAN_HandleTypeDef = CAN_HandleTypeDef;
 inline CAN_HandleTypeDef hcan1, hcan2;
 struct TestTx {
     CAN_HandleTypeDef* bus;

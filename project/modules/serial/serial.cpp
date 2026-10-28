@@ -59,7 +59,7 @@ void Serial::init(const Config& config) {
     // 注册缓冲区满看门狗
     Daemon::Config full_daemon_config = {
         .tim_config = { .htim = config.htim },
-        .cycle = 2,
+        .cycle = 1,  // 毫秒；按实际时基取整，计数归零后的下一拍搬运
         .daemon_callback = fullTimeout,
         .device = this,
     };

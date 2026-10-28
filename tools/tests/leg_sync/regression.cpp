@@ -22,13 +22,19 @@ static void lost(void* ptr) { ++*static_cast<unsigned*>(ptr); }
 
 static void testTim() {
     CHECK(TIM::updatePeriodUs(&htim5) == 2000);
-    for (auto* instance : {TIM1, TIM8, TIM9, TIM10, TIM11}) {
+#ifdef TEST_H7
+    const auto apb2_timers = {TIM1, TIM8, TIM15, TIM16, TIM17};
+#else
+    const auto apb2_timers = {TIM1, TIM8, TIM9, TIM10, TIM11};
+#endif
+    for (auto* instance : apb2_timers) {
         TIM_HandleTypeDef timer{instance, {167, 999, 0}};
         CHECK(TIM::updatePeriodUs(&timer) == 1000);
     }
     RCC->CFGR = 0;
+    RCC->D2CFGR = 0;
     CHECK(TIM::updatePeriodUs(&htim5) == 4000);  // APB1 has no x2 when /1.
-    TIM_HandleTypeDef apb2{TIM9, {167, 999, 0}};
+    TIM_HandleTypeDef apb2{TIM1, {167, 999, 0}};
     CHECK(TIM::updatePeriodUs(&apb2) == 2000);
     apb2.Init.RepetitionCounter = 1;
     CHECK(TIM::updatePeriodUs(&apb2) == 4000);
@@ -45,10 +51,11 @@ static void testDaemon() {
     struct Case { TIM_HandleTypeDef* timer; uint32_t ms; unsigned n; };
     for (const auto& c : {Case{&htim5, 100, 50}, Case{&one_ms, 100, 100},
                          Case{&half_ms, 2, 4}, Case{&htim5, 2, 1},
-                         Case{&htim5, 0, 1}, Case{&htim5, 3, 2}}) {
+                         Case{&htim5, 0, 1}, Case{&htim5, 3, 2},
+                         Case{&one_ms, 1, 1}, Case{&htim5, 1, 1}}) {
         // Objects remain alive because TIM holds their addresses.
-        static Daemon dogs[6];
-        static unsigned calls[6]{};
+        static Daemon dogs[8];
+        static unsigned calls[8]{};
         static unsigned i = 0;
         auto& dog = dogs[i]; auto& called = calls[i++];
         dog.init({{c.timer}, c.ms, lost, &called});
@@ -99,6 +106,30 @@ static void testSerial() {
     USART::inject(&uart, tail, 3);
     CHECK(serial_calls == 2 && received == std::vector<uint8_t>({10, 20, 30}));
     ticks(5); CHECK(serial_calls == 2);  // Idle reception cancels full timeout.
+    // Fill the rest of the ring, then receive Idle before expiry.
+    USART::inject(&uart, full.data(), 253);
+    ticks(1); CHECK(serial_calls == 2);
+    USART::inject(&uart, tail, 2);
+    CHECK(serial_calls == 3 && received.size() == 255);
+    ticks(3); CHECK(serial_calls == 3);
+    // Flush the remaining ring tail so the next scenario starts at offset zero.
+    USART::inject(&uart, full.data(), 254);
+    ticks(2); CHECK(serial_calls == 4 && received.size() == 254);
+    // Another full event reloads the watchdog, even after it reached zero.
+    USART::inject(&uart, full.data(), 256);
+    ticks(1); CHECK(serial_calls == 4);
+    USART::inject(&uart, full.data(), 256);
+    ticks(1); CHECK(serial_calls == 4);
+    ticks(1); CHECK(serial_calls == 5 && received.size() == 256);
+    CHECK(std::equal(received.begin(), received.end(), full.begin()));
+}
+
+static void testSerialStartup() {
+    UART_HandleTypeDef uart{};
+    serial.init({&uart, &htim5, serialRx});
+    ticks(1); CHECK(serial_calls == 0);
+    ticks(1); CHECK(serial_calls == 1 && received.size() == 256);
+    ticks(10); CHECK(serial_calls == 1);
 }
 
 template <size_t N>
@@ -306,6 +337,11 @@ int main(int argc, char** argv) {
     if (name == "tim") testTim();
     else if (name == "daemon") testDaemon();
     else if (name == "serial") testSerial();
+    else if (name == "serial_1ms") {
+        htim5.Init.Prescaler = 83;
+        testSerial();
+    }
+    else if (name == "serial_startup") testSerialStartup();
     else if (name == "vt13") testVt13();
     else if (name == "dt7") testDt7();
     else if (name == "dji") testDji();
