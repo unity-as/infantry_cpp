@@ -62,10 +62,10 @@ void Shoot_Init(void)
     cfg_fric.direction = DJIM_DIRECTION_NORMAL;
     motor_fric_r.init(cfg_fric);
 
-    // 摩擦轮永久开启
-    motor_fric_l.setEnable(1);
+    // 摩擦轮保持关闭
+    motor_fric_l.setEnable(0);
     motor_fric_l.setVelocity(FRIC_SPEED_DEGS);
-    motor_fric_r.setEnable(1);
+    motor_fric_r.setEnable(0);
     motor_fric_r.setVelocity(FRIC_SPEED_DEGS);
 
     // 拨盘 M2006 (CAN2, ID3, REVERT, 减速比36)
@@ -115,8 +115,8 @@ void Shoot_Fire(uint8_t count)
 static void Shoot_Task(void *arg)
 {
     for (;;) {
-        motor_fric_l.setEnable(shoot_cmd.enable);
-        motor_fric_r.setEnable(shoot_cmd.enable);
+        motor_fric_l.setEnable(0);
+        motor_fric_r.setEnable(0);
         motor_mag.setEnable(shoot_cmd.enable);
 
         switch (fire_state) {

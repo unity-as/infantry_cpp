@@ -24,7 +24,7 @@ extern "C" {
 // ======= 机器人参数 =======
 
 // 云台电机初始位置 — 编码器值
-#define GIMBAL_YAW_ECD      6660 - 30 *360 / 8192.f
+#define GIMBAL_YAW_ECD      (6660 - 30 *360 / 8192.f - 4096)
 #define GIMBAL_PITCH_ECD    2710
 
 // 云台重力补偿torque

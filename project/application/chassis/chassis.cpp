@@ -12,8 +12,8 @@ static ChassisMotion chassis_inst;
 
 PID::Config pid_velocity_config =
 {
-    .kp = 0.05f,
-    .ki = 0.8f,
+    .kp = 0.0375f,
+    .ki = 0.6f,
     .kd = 0.0f,
     .mode = PID::Mode::Position,   // 位置式：反算抗饱和需要可操作的累加积分
     .features = PID::FeatureOutputLimit
