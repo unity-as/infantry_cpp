@@ -19,6 +19,7 @@
 #define CHASSIS_BUFFER_MAX_J   60.0f   // 缓冲能量上限 (J)，归一化 + "满"阈值
 
 AHRS cmd_ahrs;
+static CORDICMath cmd_cordic;
 static RGB cmd_rgb;
 
 static volatile float bus_voltage;  // 最新母线电压(V), Ozone 可 watch, volatile 防优化
@@ -57,6 +58,7 @@ void Cmd_Init(void)
         .board_pitch    = 0.0f,
         .board_roll     = -90.0f,
         .accel_lpf_coef = 0.0085f,
+        .cordic         = &cmd_cordic,
     };
     cmd_ahrs.init(ahrs_cfg);
 

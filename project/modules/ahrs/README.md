@@ -180,7 +180,10 @@ AHRS 在调用 KF 前显式准备模型值和 Jacobian，KF 不调用姿态回�
 ## 软件欧拉角与耗时观察
 
 STM32F407 没有 CORDIC 外设（[ST DS8626 Rev 12，表 2 与图 5](https://www.st.com/resource/en/datasheet/stm32f407ig.pdf)），
-roll/yaw 直接使用 `math.h` 的 `atan2f`，pitch 使用 `asinf`／边界钳位；不引入 H7 CORDIC 类型、驱动或硬件对照路径。
+保留 `leg_main` 的 `AHRS::Config::cordic`、`CORDICMath::atan2(y, x)` 与欧拉角调用方式。
+本模块在 `ahrs.h/.cpp` 提供无状态的软件兼容实现：`CORDICMath::atan2` 直接调用 `math.h` 的 `atan2f`，返回弧度，无需初始化。
+`Cmd_Init()` 传入静态软件适配对象；若配置为 `nullptr`，仍按源实现直接使用 `atan2f`。
+pitch 使用 `asinf`／边界钳位，原有 `sinf/cosf/acosf` 调用保持不变；不引入 H7 HAL 类型、驱动或硬件对照路径。
 
 保留源实现的 DWT 任务耗时量 `ahrs_task_elapsed_us`、`ahrs_task_max_us`、`ahrs_task_period_us`。
 `AHRS_ENABLE_PROFILING` 默认 1，`ahrs_profile` 记录 IMU、EKF、软件欧拉角的本拍和累计最大耗时；置 0 后仅移除分段计时。
@@ -191,12 +194,15 @@ roll/yaw 直接使用 `math.h` 的 `atan2f`，pitch 使用 `asinf`／边界钳�
 源版本为 `leg_main@12b4395`，移植前基线为 `infantry_cpp@e822d5e`。
 PID 与 KF/EKF 源码在统一换行符后与源版本一致；AHRS 差异限于 F407 外设、软件欧拉角及去除 CORDIC 对照。
 
-- Debug ARM 构建通过，生成 `build/infantry.elf`、`.hex`、`.bin`；RAM 80112 B、FLASH 117852 B。
+- 软件重定向后的 Debug ARM 构建通过，生成 `build/infantry.elf`、`.hex`、`.bin`；RAM 80120 B、FLASH 118000 B。
 - 使用源项目 `test_pid.py` 验证真实 C++ PID 的秒制积分、微分、两种模式、限幅、回灌及非法周期默认值，通过。
 - 使用源项目 `test_kalman_filter.py` 与真实 CMSIS 标量源码，在 `-O0`、`-O2` 下各通过 3728262 次检查；
   包括 5400 次随机更新及 40000 次递推，稠密与紧凑 H 的状态、协方差与原运算顺序逐位一致。
 - 从移植前后源码提取 11 组实际 PID 配置，在相同输入下完成 132000 次输出／积分对照，包含底盘功率回灌；
   满足 `abs(error) <= 5e-5*(1+abs(reference))`，最大输出绝对差约 0.000244、最大积分绝对差约 0.0000534。
+- 软件重定向核验：从真实源码提取改动前（`5e03e00`）与当前 `quatToEuler()`，在主机 `-O2` 下比较 20013 组四元数，
+  包含普通姿态、零符号、±180° 附近及 ±90° 俯仰钳位；适配对象与空指针回退两条路径共 120078 次角度对比逐位一致。
+  同时确认当前 `quatToEuler()` 文本与 `leg_main@12b4395` 相同；主机对照不代替目标板实时性验证。
 
 本机测试驱动、移植前快照位于 Git 忽略的 `build/port-leg-ahrs-pid/`；原算法测试来自源项目的 `tools/host/tests/`。
 本次未烧录；实车姿态、预热与温控效果、控制稳定性、目标板执行时间和栈余量均未验证。

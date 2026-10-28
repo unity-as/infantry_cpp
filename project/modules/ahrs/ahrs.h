@@ -59,6 +59,13 @@ struct AHRSProfile {
 extern volatile AHRSProfile ahrs_profile;
 #endif
 
+/// F407 的软件适配：保留 leg_main 的相角调用接口，无外设状态、无需初始化。
+class CORDICMath {
+public:
+    /// atan2(y, x)，直接调用 math.h 的 atan2f，返回弧度。
+    float atan2(float y, float x);
+};
+
 class AHRS {
 public:
     using KF = KalmanFilter<AHRS_STATE_DIM, AHRS_OBS_DIM>;
@@ -84,6 +91,7 @@ public:
         float process_noise_bias;
         float obs_noise_accel;
         uint32_t preheat_timeout_ms;
+        CORDICMath* cordic = nullptr;  ///< 保留源接口；本板适配为软件，nullptr 同样使用 atan2f。
     };
 
     // —— 实例变量 ——
@@ -91,6 +99,7 @@ public:
     uint32_t preheat_elapsed_ms_ = 0;
 
 private:
+    CORDICMath* cordic_ = nullptr;
     BMI088 bmi088_;
     KF kf_;
     IMUTemp imu_temp_;
