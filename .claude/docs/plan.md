@@ -18,6 +18,10 @@
 | [impl/aim.md](impl/aim.md) | 自瞄（未拆五件套） |
 | [impl/feedforward.md](impl/feedforward.md) | 前馈 |
 | [impl/ahrs.md](impl/ahrs.md) | AHRS |
+| [VT13](../../project/modules/vt13/README.md) / [DT7](../../project/modules/dt7/README.md) | 独立遥控器模块 |
+| [Daemon](../../project/modules/daemon/README.md) / [Serial](../../project/modules/serial/README.md) | 超时与串口管理 |
+| [DJI](../../project/modules/motor/dji_motor/README.md) / [达妙](../../project/modules/motor/dm_motor/README.md) | 电机驱动 |
+| [模块回归](../../tools/tests/leg_sync/README.md) | 主机验证入口及覆盖范围 |
 
 ## C++ 规范
 

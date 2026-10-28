@@ -171,3 +171,13 @@
 - **验证结果**：索引 `docs/plan.md` 已更新；底盘五件套已建，云台仅 overview/调参
 - **待办**：architecture.md 仍偏 C；aim/ahrs/feedforward 未拆五件套；production.md 未写
 
+
+## 2026-10-29
+
+### 同步 leg_main 遥控、Daemon 与电机模块
+
+- **任务**：从 `leg_main` 提交 `12b4395` 同步 VT13、DT7、Daemon、DJI 与达妙模块，应用改用 VT13；Serial 实现与来源相同，小电脑与裁判系统同步显式 TIM 依赖。
+- **原因**：统一维护项目间的接口与毫秒超时契约。
+- **变更文件**：`project/modules/` 对应驱动及说明、`bsp_tim` 的 F407 周期计算、`application/cmd`、关联文档入口；回归方法见 [模块测试](../../../tools/tests/leg_sync/README.md)。平台差异仅适配经典 CAN、TIM5 与 F407 APB 时钟；生成代码与应用调参保持原值。
+- **验证结果**：7 组主机回归共 168 个断言通过，覆盖范围及预期见测试说明；ARM Debug 构建通过，RAM 80816 B、FLASH 118900 B。未烧录，实车行为未验证。
+- **待办**：见 [当前迭代](../todo/current.md)。
