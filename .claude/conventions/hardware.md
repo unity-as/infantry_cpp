@@ -51,5 +51,38 @@
 | USART6 | PG14(TX)/PG9(RX) | minipc 视觉（115200） | minipc_comm |
 | SPI1 | PA7(MOSI)/PB3(SCK)/PB4(MISO) | BMI088 IMU | ahrs |
 | I2C3 | PA8(SCL)/PC9(SDA) | IST8310 磁力计（可选） | ahrs |
-| TIM5 | — | 电机控制与 Daemon 时基；更新周期 2 ms（PSC=167、ARR=999、定时器时钟 84 MHz） | bsp_tim |
+| TIM5 | — | 电机控制、RGB PWM 与 Daemon 时基；周期见下方定时器表 | bsp_tim / rgb_led |
 | ADC3 | PF10(IN8) | 母线电压（功率监测） | power |
+
+## 时钟树与定时器
+
+2026-10-29 按 [时钟初始化](../../Core/Src/main.c)、[HSE 配置](../../Core/Inc/stm32f4xx_hal_conf.h)、
+[定时器生成代码](../../Core/Src/tim.c)、[CubeMX 配置](../../infantry_cpp.ioc) 与
+[HAL 时基实现](../../Core/Src/stm32f4xx_hal_timebase_tim.c) 核对。以下为源码配置事实，板端实际计时与输出待实测。
+
+- HSE 为 12 MHz；PLL M=6、N=168、P=2，SYSCLK 与 AHB 均为 168 MHz。
+- APB1 四分频，PCLK1 为 42 MHz；TIM4、TIM5、TIM14 属于 APB1，定时器输入时钟为 84 MHz。
+- APB2 二分频，PCLK2 为 84 MHz；TIM1、TIM10 属于 APB2，定时器输入时钟为 168 MHz。
+- 当前两个 APB 的分频均大于 1，因此相应定时器输入时钟为 PCLK 的两倍；不能把主频直接当作所有 TIM 的输入时钟。
+
+当前分支统一为 1 MHz 计数时钟，即每计数一次为 1 μs；各定时器的 ARR 决定最终周期：
+
+| 定时器 | 总线 | 输入时钟 | PSC | ARR | 更新 / PWM 周期 |
+|---|---|---|---|---|---|
+| TIM1 | APB2 | 168 MHz | 168-1 | 20000-1 | 20 ms |
+| TIM4 | APB1 | 84 MHz | 84-1 | 2000-1 | 2 ms |
+| TIM5 | APB1 | 84 MHz | 84-1 | 1000-1 | 1 ms |
+| TIM10 | APB2 | 168 MHz | 168-1 | 5000-1 | 5 ms |
+| TIM14 | APB1 | 84 MHz | HAL 按输入时钟计算，当前为 84-1 | 1000-1 | 1 ms，HAL tick |
+
+当前均为向上计数，TIM1 的重复计数器为 0；计数频率为 `f_TIM / (PSC+1)`，
+更新周期为 `(PSC+1) * (ARR+1) / f_TIM`。CubeMX 的 Counter Period 对应 ARR，CNT 是运行中的计数值。
+TIM14 保留 HAL 自动计算预分频的逻辑，不改成固定数字。
+
+此前仓库中 TIM5 为 PSC=167、ARR=999，实际为 500 Hz / 2 ms，与应用注释的 1 kHz 目标不符；
+该配置从初始提交 `662e182` 即存在，本次修正为 1 ms。用户本次 CubeMX 生成结果还将 TIM4 的 ARR
+从旧 `tim.c` 的 65535 对齐为 `.ioc` 中的 2000-1，因此其当前周期为 2 ms。
+TIM1、TIM10 的表达式改写不改变数值和周期。TIM5 同时驱动 RGB PWM，载波随修正由 500 Hz 变为 1 kHz。
+
+**状态：待实机测试。** 时基修正的 PID 配套口径见 [PID 模块](../../project/modules/alg/pid/README.md#tim5-周期修正待实机测试)，
+联调项目和验证状态统一见 [当前迭代](../records/todo/current.md#tim5-时基与-pid-待测试)。

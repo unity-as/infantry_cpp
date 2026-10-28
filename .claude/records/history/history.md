@@ -188,3 +188,12 @@
 - **原因**：统一等待参数和说明，避免将毫秒配置理解为精确回调时刻或逐字节静默检测。
 - **验证结果**：步兵主机 9 组共 201 项检查通过，leg_main 的 TIM/Daemon/Serial 5 组共 80 项检查通过；两端 ARM Debug 构建通过，未烧录。可复现命令见 [测试入口](../../../tools/tests/leg_sync/README.md)。
 - **待办**：额外发现及剩余差异见 [当前对齐清单](../todo/current.md#跨项目通用模块对齐2026-10-29)。
+
+### 定时器时基与 PID 配套（待实机测试）
+
+- **任务**：保存用户的 CubeMX 定时器配置，并为实际调用周期变化补齐底盘、云台、摩擦轮 PID 参数；代码提交 `41ee4ac`，继续保留在 `codex/timer-1ms-pending-test`，未合并 main。
+- **原因**：定时器输入时钟受 APB 归属影响，原 TIM5 实际周期与 PID 配置不符。硬件配置的唯一维护位置为 [硬件事实](../../conventions/hardware.md#时钟树与定时器)，配套换算与适用边界见 [PID 模块](../../../project/modules/alg/pid/README.md#tim5-周期修正待实机测试)。
+- **变更文件**：用户生成的 `Core/Src/tim.c`、`infantry_cpp.ioc`；应用 `chassis.cpp`、`gimbal.cpp`、`shoot.cpp`；PID README、硬件事实和当前待办。旧云台调参说明标明为历史 C 版记录，避免与当前秒制 PID 和参数混淆。未手改 Core/Drivers；其余预存生成文件差异继续保留在工作区。
+- **验证方法与预期**：核对 `.ioc` 与生成代码的 PSC/ARR；以修改前配置为基准，编译实际 `pid.cpp`，比较相同物理时长内的恒误差 P/I 输出、匀速反馈的微分输出、积分输出上限及滤波阶跃，预期在浮点容差内保持原尺度；另运行现有 TIM、Daemon、`serial_1ms` 主机用例并构建 ARM Debug 固件。
+- **验证结果**：四个定时器的源码配置与 `.ioc` 一致；PID 数值检查 42 项通过，TIM/Daemon/Serial 共 63 项通过。`cmake --build build` 通过，RAM 80816 B、FLASH 118912 B。构建与主机检查基于当前工作区，包含用户预存生成结果；修改前 1438 个脏文件内容按 SHA-256 核对未被本轮改写。
+- **结论与待办**：源码周期和参数换算已核对，未烧录，实际中断周期、PWM 波形和实车闭环效果均未验证；继续按 [待测试清单](../todo/current.md#tim5-时基与-pid-待测试) 联调，不能视作已验证基线。
