@@ -181,3 +181,10 @@
 - **变更文件**：`project/modules/` 对应驱动及说明、`bsp_tim` 的 F407 周期计算、`application/cmd`、关联文档入口；回归方法见 [模块测试](../../../tools/tests/leg_sync/README.md)。平台差异仅适配经典 CAN、TIM5 与 F407 APB 时钟；生成代码与应用调参保持原值。
 - **验证结果**：7 组主机回归共 168 个断言通过，覆盖范围及预期见测试说明；ARM Debug 构建通过，RAM 80816 B、FLASH 118900 B。未烧录，实车行为未验证。
 - **待办**：见 [当前迭代](../todo/current.md)。
+
+### 两端 Serial 毫秒等待与计时边界
+
+- **任务**：Serial 满缓冲等待参数改为 1 ms，并将 Daemon 的额外一拍、相位和 Serial 事件边界同步到两端模块 README；未修改 Daemon 算法。
+- **原因**：统一等待参数和说明，避免将毫秒配置理解为精确回调时刻或逐字节静默检测。
+- **验证结果**：步兵主机 9 组共 201 项检查通过，leg_main 的 TIM/Daemon/Serial 5 组共 80 项检查通过；两端 ARM Debug 构建通过，未烧录。可复现命令见 [测试入口](../../../tools/tests/leg_sync/README.md)。
+- **待办**：额外发现及剩余差异见 [当前对齐清单](../todo/current.md#跨项目通用模块对齐2026-10-29)。
