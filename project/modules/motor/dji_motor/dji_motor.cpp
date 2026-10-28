@@ -1,7 +1,7 @@
 /**
  * @file    dji_motor.cpp
  * @brief   DJI 电机实现（C → C++）
- * @note    原 C 版逻辑不变；malloc 实例改为应用层全局对象，发送组 CAN 用静态实例池（禁堆）。
+ * @note    malloc 实例改为应用层全局对象，发送组 CAN 用静态实例池（禁堆）。
  */
 #include "dji_motor.h"
 #include "bsp_tim.h"
@@ -48,8 +48,7 @@ void DJIMotor::decodeCallback(void* device)
 
     instance->angle_ += angle_delta;
 
-    instance->velocity_raw_ = velocity_user;   // 原始值（未滤波）
-    instance->velocity_ += DJIM_VELOCITY_LPF_ALPHA * (velocity_user - instance->velocity_);   // 一阶低通
+    instance->velocity_ = velocity_user;
     instance->current_ = current_user;
     instance->temperature_ = instance->feedback_raw_.temp;
 
@@ -72,6 +71,8 @@ void DJIMotor::currentCommand()
         current_cnt = djim_current_cnt_range[motor_type_];  // 限流保护
     else if (current_cnt < -djim_current_cnt_range[motor_type_])
         current_cnt = -djim_current_cnt_range[motor_type_];
+
+    command_current_cnt_ = current_cnt;
 
     // 发送电流指令，大端模式
     command_ptr_[0] = (uint8_t)(current_cnt >> 8);
@@ -149,8 +150,15 @@ void DJIMotor::timCallback(void* device)
     for (uint8_t i = 0; i < idx_; i++)
         instances_[i]->update();  // 定时器中断处理函数，更新所有注册的电机实例的PID
 
-    for (uint8_t i = 0; i < group_idx_; i++)
-        tx_group_pool_[i].transmit(1.0f);
+    for (uint8_t i = 0; i < group_idx_; i++) {
+        const uint8_t tx_ok = tx_group_pool_[i].transmit(0.01f);
+        for (uint8_t j = 0; j < idx_; j++)
+            if (instances_[j]->tx_group_ == &tx_group_pool_[i]) {
+                instances_[j]->command_tx_ok_ = tx_ok;
+                if (!tx_ok)
+                    instances_[j]->command_tx_fail_count_++;
+            }
+    }
 }
 
 void DJIMotor::setAngle(float angle)
@@ -207,6 +215,7 @@ void DJIMotor::timbaseSelect(TIM_HandleTypeDef* htim)
     TIM::Config tim_config = { .htim = htim };
     tim_.init(tim_config);
 
+    // 给已注册电机的 daemon 补绑同一时基（init 时以 nullptr 占槽）
     for (uint8_t i = 0; i < idx_; i++)
         instances_[i]->daemon_lose_.setTimbase(htim);
 }
@@ -282,6 +291,7 @@ void DJIMotor::init(const Config& config)
 
         group_idx_++;
     }
+    tx_group_ = djim_tx_instance;
     command_ptr_ = djim_tx_instance->tx_buff_ + 2 * ((motor_id_ - 1) % 4);  // 每4个电机共用一个发送实例，每个电机占2字节
 
     instances_[idx_++] = this;

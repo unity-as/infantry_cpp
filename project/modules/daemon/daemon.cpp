@@ -19,23 +19,40 @@ void Daemon::timerCallback(void* arg) {
     }
 }
 
+void Daemon::bindTicks() {
+    const uint32_t period_us = TIM::updatePeriodUs(tim_.handle());
+    if (period_us == 0) {
+        cycle_ = timeout_ms_ == 0 ? 1u : timeout_ms_;
+        return;
+    }
+    const uint64_t rounded =
+        static_cast<uint64_t>(timeout_ms_) * 1000ull + period_us / 2ull;
+    uint32_t ticks = static_cast<uint32_t>(rounded / period_us);
+    if (ticks == 0)
+        ticks = 1;
+    cycle_ = ticks;
+}
+
 void Daemon::reset() {
     online_ = 1;
     count_ = cycle_;
 }
 
 void Daemon::init(const Config& config) {
-    cycle_ = config.cycle;
+    timeout_ms_ = config.cycle;
     daemon_callback_ = config.daemon_callback;
     device_ = config.device;
 
     // 将 Daemon 实例指针作为定时器回调 device（替代 config 里塞 device/tim_callback）
     tim_.setCallback(timerCallback, this);
     tim_.init(config.tim_config);
+    bindTicks();
 
     reset();
 }
 
 void Daemon::setTimbase(TIM_HandleTypeDef* htim) {
     tim_.setHandle(htim);
+    bindTicks();
+    count_ = cycle_;
 }

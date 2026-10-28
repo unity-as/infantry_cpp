@@ -7,6 +7,7 @@
 #include "serial.h"
 #include "daemon.h"
 #include "crc.h"
+#include "tim.h"
 #include <string.h>
 
 static Serial minipc_serial;

@@ -6,7 +6,7 @@
 #include "cmd.h"
 #include "config.h"
 #include <math.h>
-#include "remote.h"
+#include "vt13.h"
 #include "minipc_comm.h"
 #include "gimbal.h"
 #include "chassis.h"
@@ -60,7 +60,7 @@ void Cmd_Init(void)
     };
     cmd_ahrs.init(ahrs_cfg);
 
-    Remote_Init(&huart3);
+    VT13_Init(&huart3);
     Minipc_Init(&huart6);
     Referee_Init(&huart1);
 
@@ -92,33 +92,33 @@ void Cmd_Remote(void)
     static uint8_t last_aim = 0;
     // uint8_t lose = Minipc_GetData()->pitch == 0 && Minipc_GetData()->yaw == 0;
 
-    uint8_t aim = REMOTE_RC_FN_RIGHT() && Minipc_Online();
+    uint8_t aim = VT13_RC_FN_RIGHT() && Minipc_Online();
     if (aim) {
         if (!last_aim) Gimbal_AutoAim_Reset();   // 进入自瞄, 重置PID积分
         Cmd_AutoAim();
     } else {
         if (last_aim) Gimbal_SyncTarget();       // 退出自瞄, 同步目标
-        float yaw_delta   = -REMOTE_GIMBAL_YAW_SCALE   * REMOTE_RC_RH();//yaw左转正，摇杆往右推时右转，应取反
-        float pitch_delta = -REMOTE_GIMBAL_PITCH_SCALE * REMOTE_RC_RV();//pitch低头正，摇杆往上推时抬头，应取反
+        float yaw_delta   = -REMOTE_GIMBAL_YAW_SCALE   * VT13_RC_RH();//yaw左转正，摇杆往右推时右转，应取反
+        float pitch_delta = -REMOTE_GIMBAL_PITCH_SCALE * VT13_RC_RV();//pitch低头正，摇杆往上推时抬头，应取反
 
         Gimbal_Set_Increment_Setpoint(yaw_delta, pitch_delta);//目标值增量
     }
     last_aim = aim;
 
     // 左手 → 底盘（vx 前进 / vy 横移）
-    float vx =  REMOTE_CHASSIS_V_SCALE * REMOTE_RC_LV();
-    float vy = -REMOTE_CHASSIS_V_SCALE * REMOTE_RC_LH();
+    float vx =  REMOTE_CHASSIS_V_SCALE * VT13_RC_LV();
+    float vy = -REMOTE_CHASSIS_V_SCALE * VT13_RC_LH();
     float v   = sqrtf(vx*vx + vy*vy);
     float dir = atan2f(vy, vx) + Gimbal_GetYaw()*M_PI/180.0f;
     chassis_cmd.v = v;
     chassis_cmd.theta = dir;
 
     // 拨轮 → 底盘角速度（NO_ROTATION 模式由 Chassis_Task 应用）
-    chassis_cmd.w_rot = - REMOTE_RC_WHEEL() * REMOTE_CHASSIS_W_SCALE;
+    chassis_cmd.w_rot = - VT13_RC_WHEEL() * REMOTE_CHASSIS_W_SCALE;
 
     // 发射：自瞄须视觉 can_fire；手动只看扳机
     if (shoot_test > 0) shoot_test--;
-    if (REMOTE_RC_TRIGGER() && !shoot_test) {
+    if (VT13_RC_TRIGGER() && !shoot_test) {
         if (!aim || Minipc_GetData()->can_fire) {
             shoot_test = SHOOT_PERIOD_MS;
             Shoot_Fire(1);
@@ -131,7 +131,7 @@ void Cmd_Mouse(void)
     // 云台
     static uint8_t last_aim_m = 0;
     // uint8_t lose = Minipc_GetData()->pitch == 0 && Minipc_GetData()->yaw == 0;
-    uint8_t aim_m = REMOTE_MOUSE_RIGHT_PRESSED() && Minipc_Online();
+    uint8_t aim_m = VT13_MOUSE_RIGHT_PRESSED() && Minipc_Online();
 
     if (aim_m) {
         if (!last_aim_m) Gimbal_AutoAim_Reset();   // 进入自瞄, 重置PID积分
@@ -139,8 +139,8 @@ void Cmd_Mouse(void)
     } else {
         if (last_aim_m) Gimbal_SyncTarget();       // 退出自瞄, 同步目标
 
-        float yaw_delta   = -MOUSE_GIMBAL_YAW_SCALE   * remote_data->mouse_x;
-        float pitch_delta = -MOUSE_GIMBAL_PITCH_SCALE * remote_data->mouse_y;
+        float yaw_delta   = -MOUSE_GIMBAL_YAW_SCALE   * vt13_data->mouse_x;
+        float pitch_delta = -MOUSE_GIMBAL_PITCH_SCALE * vt13_data->mouse_y;
 
         Gimbal_Set_Increment_Setpoint(yaw_delta, pitch_delta);
     }
@@ -148,8 +148,8 @@ void Cmd_Mouse(void)
     last_aim_m = aim_m;
 
     // 键盘 → 底盘（W/S 前进后退, A/D 横移；对角归一化 × 移速）
-    float vx = (float)(REMOTE_KEY_PRESSED(REMOTE_KEY_D) - REMOTE_KEY_PRESSED(REMOTE_KEY_A));
-    float vy = (float)(REMOTE_KEY_PRESSED(REMOTE_KEY_W) - REMOTE_KEY_PRESSED(REMOTE_KEY_S));
+    float vx = (float)(VT13_KEY_PRESSED(VT13_KEY_D) - VT13_KEY_PRESSED(VT13_KEY_A));
+    float vy = (float)(VT13_KEY_PRESSED(VT13_KEY_W) - VT13_KEY_PRESSED(VT13_KEY_S));
     float v   = sqrtf(vx*vx + vy*vy);
     if (vx != 0.0f && vy != 0.0f)
         v /= 1.4142f;   // 对角归一化
@@ -163,7 +163,7 @@ void Cmd_Mouse(void)
 
     // 发射：自瞄须视觉 can_fire；手动只看左键
     if (shoot_test > 0) shoot_test--;
-    if (REMOTE_MOUSE_LEFT_PRESSED() && !shoot_test) {
+    if (VT13_MOUSE_LEFT_PRESSED() && !shoot_test) {
         if (!aim_m || Minipc_GetData()->can_fire) {
             shoot_test = SHOOT_PERIOD_MS;
             Shoot_Fire(1);
@@ -197,7 +197,7 @@ void Cmd_Task(void)
         return;
     }
 
-    uint8_t en = Remote_Online() && (REMOTE_RC_SWITCH() != REMOTE_RC_SW_C);
+    uint8_t en = VT13_Online() && (VT13_RC_SWITCH() != VT13_RC_SW_C);
     gimbal_cmd.enable  = en;
     chassis_cmd.enable = en;
     shoot_cmd.enable   = en;
@@ -226,14 +226,14 @@ void Cmd_Task(void)
 
     if (!en) return;
 
-    if(remote_data->mouse_x != 0 || remote_data->mouse_y != 0) {
+    if(vt13_data->mouse_x != 0 || vt13_data->mouse_y != 0) {
         mode_is_remote = 0;
-    }else if(REMOTE_RC_LH() != 0 || REMOTE_RC_RH() != 0 || REMOTE_RC_LV() != 0 || REMOTE_RC_RV() != 0){
+    }else if(VT13_RC_LH() != 0 || VT13_RC_RH() != 0 || VT13_RC_LV() != 0 || VT13_RC_RV() != 0){
         mode_is_remote = 1;
     }
 
     chassis_cmd.yaw_motor_angle = Gimbal_GetYaw();
-    if (REMOTE_RC_SWITCH() == REMOTE_RC_SW_S) {
+    if (VT13_RC_SWITCH() == VT13_RC_SW_S) {
         Chassis_SetMode(CHASSIS_MODE_FOLLOW);
     } else {
         Chassis_SetMode(CHASSIS_MODE_NO_ROTATION);
