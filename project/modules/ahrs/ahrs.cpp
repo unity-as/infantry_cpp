@@ -6,10 +6,6 @@
 #include <string.h>
 #include <math.h>
 
-float CORDICMath::atan2(float y, float x) {
-    return atan2f(y, x);
-}
-
 volatile float ahrs_task_elapsed_us = 0.0f;
 volatile float ahrs_task_max_us = 0.0f;
 volatile float ahrs_task_period_us = 0.0f;
@@ -49,14 +45,12 @@ void quatNormalize(float* q) {
 }
 
 // 四元数转欧拉角 (ZYX 顺序: Yaw-Pitch-Roll)
-void quatToEuler(const float* q, float* roll, float* pitch, float* yaw,
-                 CORDICMath* cordic) {
+void quatToEuler(const float* q, float* roll, float* pitch, float* yaw) {
     float q0 = q[0], q1 = q[1], q2 = q[2], q3 = q[3];
 
     const float roll_y = 2.0f*(q0*q1 + q2*q3);
     const float roll_x = 1.0f - 2.0f*(q1*q1 + q2*q2);
-    *roll = (cordic != nullptr ? cordic->atan2(roll_y, roll_x)
-                              : atan2f(roll_y, roll_x)) * RAD_TO_DEG;
+    *roll = atan2f(roll_y, roll_x) * RAD_TO_DEG;
 
     float sinp = 2.0f*(q0*q2 - q3*q1);
     if (fabsf(sinp) >= 1.0f) {
@@ -67,8 +61,7 @@ void quatToEuler(const float* q, float* roll, float* pitch, float* yaw,
 
     const float yaw_y = 2.0f*(q0*q3 + q1*q2);
     const float yaw_x = 1.0f - 2.0f*(q2*q2 + q3*q3);
-    *yaw = (cordic != nullptr ? cordic->atan2(yaw_y, yaw_x)
-                             : atan2f(yaw_y, yaw_x)) * RAD_TO_DEG;
+    *yaw = atan2f(yaw_y, yaw_x) * RAD_TO_DEG;
 }
 
 // 3D 旋转矩阵乘法: out = R × v
@@ -148,7 +141,6 @@ void AHRS::observeGravity(const Matrixf<AHRS_STATE_DIM, 1>& state, float* H, flo
  ============================================*/
 
 void AHRS::init(const Config& config) {
-    cordic_ = config.cordic;
 #if AHRS_ENABLE_PROFILING
     profile_cycles_to_us_ = 1000000.0f / static_cast<float>(HAL_RCC_GetSysClockFreq());
 #endif
@@ -508,8 +500,7 @@ void AHRS::update() {
 #if AHRS_ENABLE_PROFILING
     const uint32_t euler_start = DWT->CYCCNT;
 #endif
-    quatToEuler(output_.q, &output_.euler[0], &output_.euler[1], &output_.euler[2],
-                cordic_);
+    quatToEuler(output_.q, &output_.euler[0], &output_.euler[1], &output_.euler[2]);
 #if AHRS_ENABLE_PROFILING
     const uint32_t euler_cycles = DWT->CYCCNT - euler_start;
     const float imu_us = static_cast<float>(imu_cycles) * profile_cycles_to_us_;
