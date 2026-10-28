@@ -43,13 +43,14 @@ void Shoot_Init(void)
         .reduction_ratio = 19.0f,
         .pid_velocity = {
             .kp = 0.01f,
-            .ki = 0.0001f,
+            .ki = 0.1f,
             .kd = 0.0f,
             .mode = PID::Mode::Delta,
             .features = PID::FeatureOutputLimit | PID::FeatureFilter,
             .output_min = -20.0f,
             .output_max = 20.0f,
             .filter_alpha = 0.3f,
+            .period = 0.001f,
         },
     };
 
@@ -61,10 +62,10 @@ void Shoot_Init(void)
     cfg_fric.direction = DJIM_DIRECTION_NORMAL;
     motor_fric_r.init(cfg_fric);
 
-    // 摩擦轮永久开启
-    motor_fric_l.setEnable(1);
+    // 摩擦轮保持关闭
+    motor_fric_l.setEnable(0);
     motor_fric_l.setVelocity(FRIC_SPEED_DEGS);
-    motor_fric_r.setEnable(1);
+    motor_fric_r.setEnable(0);
     motor_fric_r.setVelocity(FRIC_SPEED_DEGS);
 
     // 拨盘 M2006 (CAN2, ID3, REVERT, 减速比36)
@@ -79,12 +80,14 @@ void Shoot_Init(void)
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit,
             .output_min = -360.0f, .output_max = 360.0f,
+            .period = 0.001f,
         },
         .pid_velocity = {
             .kp = 0.01f, .ki = 0.0f, .kd = 0.0f,
             .mode = PID::Mode::Delta,
             .features = PID::FeatureOutputLimit,
             .output_min = -10.0f, .output_max = 10.0f,
+            .period = 0.001f,
         },
     };
     motor_mag.init(cfg_mag);
@@ -112,8 +115,8 @@ void Shoot_Fire(uint8_t count)
 static void Shoot_Task(void *arg)
 {
     for (;;) {
-        motor_fric_l.setEnable(shoot_cmd.enable);
-        motor_fric_r.setEnable(shoot_cmd.enable);
+        motor_fric_l.setEnable(0);
+        motor_fric_r.setEnable(0);
         motor_mag.setEnable(shoot_cmd.enable);
 
         switch (fire_state) {

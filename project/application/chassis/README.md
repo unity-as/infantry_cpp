@@ -36,16 +36,14 @@ cmd(v, θ, w) ── chassis.c（指令对接）
 
 ### 积分反算抗饱和（[2]）
 - pid 库自带抗饱和只感知自身 output_min/max，**不感知功率控制对电流的二次限流**。
-- 功率控制限流后，用 `PID_Set_Integral` 回灌：`integral -= (1-k)·I_raw·coef`。
+- 功率控制限流后，用 `PID::setIntegral()` 回灌：`integral -= (1-k)·I_raw·coef`。
 
-#### coef 为什么 ≈ 1/Ti（= ki/kp）
+#### 时间单位与回灌系数
 
-integral 的单位是「误差×时间」（deg/s·ms），被扔掉的 `(1-k)·I_raw` 单位是 A，二者不能直接相减，靠 coef 换算。coef 有两种选法：
-
-- **精确清零** `coef = 1/ki`（本参数下 =2000）：令 `ki·Δintegral = (1-k)·I_raw`，一步减掉被限掉的电流贡献。太猛——积分被瞬间清空，可 error 还在，下一拍又从头攒，速度响应发肉。
-- **跟踪（back-calculation）** `coef = 1/Ti = ki/kp`（≈0.07）：让反算按「积分自己增长的速度」衰减。`Ti = kp/ki` 是恒定 error 下 I 项追上 P 项所需时间（本参数 = 0.007/0.0005 = 14ms）；每拍（1ms）衰减 1/Ti 比例，匹配积分自然节奏，既不清空也不拖沓。
-
-默认 `back_calc_coef = ki/kp = 0.0005/0.007 ≈ 0.07`，实现时按限流时的速度响应（发肉/过冲）微调，取值落在 `1/Ti`（顺滑）到 `1/ki`（硬）之间。
+积分单位为误差·s，`coef` 把每拍被限掉的电流差转换为积分回灌量，单位为误差·s/A。
+PID 毫秒到秒的换算规则见 [PID 模块](../../modules/alg/pid/README.md#参数与时间口径)。
+本次保持原回灌作用，将旧系数除以 1000；当前参数以 [chassis.cpp](chassis.cpp) 的 `back_calc_coef` 为准。
+该实现每拍直接扣积分，不是自动按采样周期离散化的连续跟踪器，不能将系数直接当作 `ki/kp`。
 
 ### 功率限幅（[2]）
 - 纯限幅：`P_pred = Σ Kt·I_raw·ω`，`scale = min(1, limit/P_pred)`，`I = scale·I_raw`。负功率（倒灌）算 0。
@@ -61,8 +59,8 @@ integral 的单位是「误差×时间」（deg/s·ms），被扔掉的 `(1-k)·
 
 | 参数 | 位置 | 默认 | 说明 |
 |------|------|------|------|
-| 速度环 PID | `chassis.c` `pid_velocity_config` | kp=0.007, ki=0.0005 | 位置式，沿用原速度环参数 |
-| `back_calc_coef` | `chassis.c` | 0.07 (≈ki/kp) | 反算增益，实现时调 |
+| 速度环 PID | [chassis.cpp](chassis.cpp) `pid_velocity_config` | 以代码为准 | 位置式，周期单位为秒 |
+| `back_calc_coef` | [chassis.cpp](chassis.cpp) | 以代码为准 | 每拍电流差到积分回灌量的换算系数 |
 | `DJIM_VELOCITY_LPF_ALPHA` | `dji_motor.h` | 0.15 | 速度反馈低通系数 |
 | `CHASSIS_POWER_LIMIT` | `cmd.c` | 20.0 (W) | 底盘功率上限（测试） |
 | `CHASSIS_POWER_DETECT` | `cmd.c` | 30.0 (W) | LED 红检测值（测试） |

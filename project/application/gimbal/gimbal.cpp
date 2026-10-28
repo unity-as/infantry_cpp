@@ -37,6 +37,7 @@ void Gimbal_Init(void)
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit,
             .output_min = -480.0f, .output_max = 480.0f,
+            .period = 0.001f,
         },
         .pid_pitch_pos = {
             .kp = 15.0f, .ki = 0.0f, .kd = 0.0f,
@@ -47,9 +48,10 @@ void Gimbal_Init(void)
             .integral_limit = 0.0f,
             .output_min = -240.0f, .output_max = 240.0f,
             .filter_alpha = 0.3f,
+            .period = 0.001f,
         },
         .pid_yaw_vel = {
-            .kp = 0.04f, .ki = 0.0005f, .kd = 0.02f,
+            .kp = 0.04f, .ki = 0.5f, .kd = 0.00002f,
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit
                       | PID::FeatureIntegralLimit
@@ -57,22 +59,24 @@ void Gimbal_Init(void)
                     //   | PID::FeatureVariableGain
                       | PID::FeatureFilter
                       ,
-            .integral_limit = 200.0f,
+            .integral_limit = 0.2f,
             .output_min = -1.0f, .output_max = 1.0f,
             .filter_alpha = 0.2f,
             .kp_extra = 0.00001f,
+            .period = 0.001f,
         },
         .pid_pitch_vel = {
-            .kp = 0.007f, .ki = 0.00006f, .kd = 0.002f,
+            .kp = 0.007f, .ki = 0.06f, .kd = 0.000002f,
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit
                       | PID::FeatureIntegralLimit
                       | PID::FeatureDerivativeOnMeasurement
                       | PID::FeatureFilter
                     ,
-            .integral_limit = 10000.0f,
+            .integral_limit = 10.0f,
             .output_min = -1.0f, .output_max = 1.0f,
             .filter_alpha = 0.5f,
+            .period = 0.001f,
         },
 
         .pos_freq_div_yaw   = 5,
@@ -88,27 +92,29 @@ void Gimbal_Init(void)
     // --- 自瞄 PID：参数沿用云台位置 PID ---
     PID::Config aim_yaw_cfg =
     {
-        .kp = 6.0f, .ki = 0.0f, .kd = 0.01f,
+        .kp = 6.0f, .ki = 0.0f, .kd = 0.00001f,
         .mode = PID::Mode::Position,
         .features = PID::FeatureOutputLimit
                     // | PID::FeatureFilter
                     | PID::FeatureIntegralLimit,
-        .integral_limit = 180.0f,
+        .integral_limit = 0.18f,
         .output_min = -360.0f, .output_max = 360.0f,
         .filter_alpha = 0.5f,
+        .period = 0.001f,
     };
     aim_pid_yaw.init(aim_yaw_cfg);
 
     PID::Config aim_pitch_cfg =
     {
-        .kp = 8.0, .ki = 0.0f, .kd = 0.01f,
+        .kp = 8.0, .ki = 0.0f, .kd = 0.00001f,
         .mode = PID::Mode::Position,
         .features = PID::FeatureOutputLimit
                     // | PID::FeatureFilter
                     | PID::FeatureIntegralLimit,
-        .integral_limit = 180.0f,
+        .integral_limit = 0.18f,
         .output_min = -360.0f, .output_max = 360.0f,
         .filter_alpha = 0.5f,
+        .period = 0.001f,
     };
     aim_pid_pitch.init(aim_pitch_cfg);
 
