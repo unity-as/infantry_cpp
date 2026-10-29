@@ -13,15 +13,15 @@ static ChassisMotion chassis_inst;
 PID::Config pid_velocity_config =
 {
     .kp = 0.0375f,
-    .ki = 0.6f,
+    .ki = 0.3f,
     .kd = 0.0f,
     .mode = PID::Mode::Position,   // 位置式：反算抗饱和需要可操作的累加积分
     .features = PID::FeatureOutputLimit
               | PID::FeatureIntegralLimit,
-    .integral_limit = 20.0f,
+    .integral_limit = 40.0f,
     .output_min = -20.0f,
     .output_max = 20.0f,
-    .period = 0.001f,            // 速度环 1 ms，PID 周期单位为秒
+    .period = 0.001f,            // TIM5 2 ms → 1 ms：Ki 减半、积分限幅翻倍，待实机测试
 };
 
 static void Chassis_Task(void *arg)

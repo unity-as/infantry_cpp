@@ -1,49 +1,35 @@
-# dm_motor — 达妙关节电机
+# 达妙电机
 
-经典 CAN（`bsp_can`）驱动，单位：rad / rad/s / N·m。自 `leg_main` 移植并适配 F4。
+通过本项目 `bsp_can` 经典 CAN 收发，用户量单位为 rad、rad/s、N·m。本项目当前应用层未实例化达妙电机；驱动已编译及主机验证，实机未验证。
 
-## 模式：只在 init 定一次
+## 接口与反馈
 
-**不支持运行期换模式。** `Config.mode` → 成员 `mode_`，`init` 发一帧写电调 `CTRL_MODE`（RID=10），并短忙等 2 ms（仅 Init 可接受）。
+`Config.mode` 设置初始模式；对应接口为 `Current → setCurrent`、`Mit → setMit`、`Position → setAngle`、`Velocity → setVelocity`。`init()` 写电调 CTRL_MODE，并忙等 2 ms，须在 CAN/TIM 就绪后初始化。CTRL_MODE 临时生效，不保存 Flash。
 
-| `Mode` | 电调 CTRL_MODE | 控制帧 ID | 运行时 API |
-|--------|----------------|-----------|------------|
-| `Current` | 1 MIT | `control_id + 0` | `setCurrent`（纯 t_ff） |
-| `Mit` | 1 MIT | `control_id + 0` | `setMit` |
-| `Position` | 2 位置速度 | `+ 0x100` | `setAngle` |
-| `Velocity` | 3 速度 | `+ 0x200` | `setVelocity` |
+反馈 D[0] 高四位由原 `err_` 改为 `state_`：0 失能、1 工作中；识别、读取异常及故障定义见 [dm_motor.h](dm_motor.h)。`running()` 判断工作状态，`faulted()` 判断异常，`shouldAutoClear()` 仅标记原有高位故障范围，不自行清错。未知状态原样保留。
 
-请只用与 `Config.mode` 匹配的 `set*`；错用只会改本地目标量，发出的仍是 init 定下的帧类型。
+`angle_raw_` 是减速后、方向与零偏变换前的角度；`angle_` 为用户角度。反馈内电机 ID 不匹配时不更新、不喂狗。通信超时及配置单位见 [Daemon](../../daemon/README.md#调用方)；离线仅清 `motor_valid_`，上层仍须据此决定使能。
 
-`CTRL_MODE` 临时生效，掉电不存 Flash（本库不做 `0xAA` 保存）。
-
-## 最小用法
+## 异步模式切换
 
 ```cpp
-DMMotor motor;
-DMMotor::Config cfg{};
-cfg.can_handle = &hcan1;
-cfg.control_id = 0x05;   // 助手 CANID
-cfg.feedback_id = 0x15;  // 助手 MasterID
-cfg.mode = DMMotor::Mode::Velocity;
-cfg.htim = &htim5;
-motor.init(cfg);
-
-motor.setEnable(1);
-motor.setVelocity(6.28f);  // rad/s
+motor.requestMode(DMMotor::Mode::Position);
+// 后续周期查询，不阻塞当前回调。
+if (!motor.modeSwitching() && motor.mode() == DMMotor::Mode::Position)
+    motor.setAngle(target, speed_limit);
 ```
 
-使能：`setEnable(1)` → 管理帧 `0xFC`；失能软停并发 0 力矩 MIT 帧。
+定时回调依次失能、写 CTRL_MODE、等待 2 个心跳，并按切换前状态决定是否重新使能；期间不发送控制帧。发送失败停留当前阶段，下拍重试。切换中再次请求会更新待切模式或排队，当前切完继续处理。
 
-## 协议要点
+- `mode()` 返回当前本地模式；`modeSwitchStatus()` 返回阶段；`Ready` 只表示本地发送时序完成，不代表已收到电调写入确认。
+- 新模式生效时目标重置为当前位置、零速度、零力矩；完成后再写新目标。
+- 切换中的 `setEnable()` 只更新完成后是否恢复使能。
+- `setAngle(angle)` 使用不限速配置；双参数形式采用 `abs(velocity)`，速度上限不随电机方向变负。
 
-- 波特率 1 Mbps；反馈帧格式各模式相同（MasterID）
-- MIT / 反馈：位置 16 位、速度/力矩 12 位，映射默认 ±12.5 rad / ±45 rad/s / ±18 N·m（可用 Config 或助手 PMAX/VMAX/TMAX 对齐）
-- 位置速度 / 速度控制帧：float 小端；`setAngle(θ)` 的 v_des 为 `DM_VEL_UNLIMITED`（不限速）
-- 管理命令：帧 ID = `control_id`，前 7 字节 `0xFF`，第 8 字节 `0xFB/FC/FD/FE`
+## 失能、量程与发送
 
-## 注意
+失能心跳持续发送 DISABLE 管理帧，不再发送零力矩控制帧；重复 `setEnable(0)` 不立即重发，下一心跳仍发送 DISABLE。使能发送 ENABLE 后转发控制帧。所有发送等待上限采用源版 0.01 ms（本项目 `CAN::transmit()` 单位为毫秒）。
 
-- MIT 位置给定受 `PMAX` 夹紧（默认约 ±12.5 rad），累计目标超限会「顶住」
-- MIT 控位置时 `kd` 勿为 0（易震荡）
-- `init` 须在 CAN/TIM 就绪后、调度器周期任务之前调用（含 2 ms 忙等）
+默认 MIT/反馈量程的唯一值定义在 [dm_motor_def.h](dm_motor_def.h)：本轮同步源项目的 DM-J8009 力矩映射。其他型号或助手改过 PMAX/VMAX/TMAX 时，必须通过实例 `Config.p_min/max`、`v_min/max`、`t_min/max` 匹配电调内部量程；本次不修改电调参数或认定本板连接了该型号。位置速度/速度帧使用小端 float。
+
+主机验证入口与范围见 [模块测试](../../../../tools/tests/leg_sync/README.md)。

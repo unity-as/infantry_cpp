@@ -37,7 +37,7 @@ void Gimbal_Init(void)
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit,
             .output_min = -480.0f, .output_max = 480.0f,
-            .period = 0.001f,
+            .period = 0.005f,  // TIM5 1 ms × 位置环 5 分频
         },
         .pid_pitch_pos = {
             .kp = 15.0f, .ki = 0.0f, .kd = 0.0f,
@@ -48,10 +48,10 @@ void Gimbal_Init(void)
             .integral_limit = 0.0f,
             .output_min = -240.0f, .output_max = 240.0f,
             .filter_alpha = 0.3f,
-            .period = 0.001f,
+            .period = 0.005f,  // TIM5 1 ms × 位置环 5 分频
         },
         .pid_yaw_vel = {
-            .kp = 0.04f, .ki = 0.5f, .kd = 0.00002f,
+            .kp = 0.04f, .ki = 0.25f, .kd = 0.00004f,
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit
                       | PID::FeatureIntegralLimit
@@ -59,23 +59,23 @@ void Gimbal_Init(void)
                     //   | PID::FeatureVariableGain
                       | PID::FeatureFilter
                       ,
-            .integral_limit = 0.2f,
+            .integral_limit = 0.4f,
             .output_min = -1.0f, .output_max = 1.0f,
-            .filter_alpha = 0.2f,
+            .filter_alpha = 0.10557281f,  // 1 - sqrt(1 - 0.2)，保持原 2 ms 滤波时间尺度
             .kp_extra = 0.00001f,
             .period = 0.001f,
         },
         .pid_pitch_vel = {
-            .kp = 0.007f, .ki = 0.06f, .kd = 0.000002f,
+            .kp = 0.007f, .ki = 0.03f, .kd = 0.000004f,
             .mode = PID::Mode::Position,
             .features = PID::FeatureOutputLimit
                       | PID::FeatureIntegralLimit
                       | PID::FeatureDerivativeOnMeasurement
                       | PID::FeatureFilter
                     ,
-            .integral_limit = 10.0f,
+            .integral_limit = 20.0f,
             .output_min = -1.0f, .output_max = 1.0f,
-            .filter_alpha = 0.5f,
+            .filter_alpha = 0.29289322f,  // 1 - sqrt(1 - 0.5)，保持原 2 ms 滤波时间尺度
             .period = 0.001f,
         },
 

@@ -27,8 +27,10 @@ enum DMMotor_Direction : uint8_t {
 #define DM_V_MAX (45.0f)
 /** 位置速度模式 v_des 用很大值 ≈ 不限速（梯形匀速段上限，非 MIT 映射量程） */
 #define DM_VEL_UNLIMITED (1000.0f)
-#define DM_T_MIN (-18.0f)
-#define DM_T_MAX (18.0f)
+/** 力矩映射量程 = DM-J8009 出厂 TMAX（寄存器 RID 23）±54 N·m；发令与反馈同一量程。
+ *  必须与电机内 TMAX 一致，否则力矩按 TMAX/本值 倍缩放（原 ±18 时实际力矩为指令的 3 倍）。 */
+#define DM_T_MIN (-54.0f)
+#define DM_T_MAX (54.0f)
 
 #define DM_KP_MIN (0.0f)
 #define DM_KP_MAX (500.0f)

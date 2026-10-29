@@ -1,93 +1,41 @@
-# daemon 模块
+# Daemon 离线看门狗
 
-## 概述
+C++ 实例接口见 [daemon.h](daemon.h)。每个实例拥有毫秒超时配置、定时器拍计数、离线回调和 `device`；依赖 TIM 中断，不使用 RTOS 软件定时器或堆分配。
 
-看门狗/守护进程模块，用于检测设备是否在线。当设备在指定周期内没有"喂狗"，则触发离线回调。
-
-## 依赖
-
-```
-daemon
-  ↑
-bsp_tim (BSP 层，定时器)
-```
-
-## 工作模式
-
-通过 `TIM_DAEMON_SUPPORT` 宏选择模式：
-
-| 模式 | 说明 | 推荐 |
-|------|------|------|
-| TIM 模式 | 使用 BSP_TIM 定时器，纯 ISR 计数 | ✓ 推荐 |
-| RTOS 模式 | 使用 CMSIS 软件定时器 | 复杂，不推荐 |
-
-### TIM 模式（推荐）
-
-使用 1ms 定时器中断，每个 daemon 实例维护一个计数器。
-
-```
-定时器中断 (1ms)
-    ↓
-Timer_Callback()
-    ↓
-遍历所有 daemon 实例
-    ↓
-count > 0 → count--
-count == 0 → 触发 daemon_callback，标记 offline
+```cpp
+Daemon watchdog;  // 保持整个使用期存活
+watchdog.init({
+    .tim_config = {.htim = timer_handle},  // 已初始化的业务 TIM 句柄
+    .cycle = 100,                         // 毫秒，不是拍数
+    .daemon_callback = onLost,            // void (*)(void*)
+    .device = device,
+});
+// 有效信息到达时 watchdog.reset()；由 watchdog.online_ 查询状态。
 ```
 
-### RTOS 模式局限
+`init()` 和 `reset()` 均置在线、重装计数。需要“首帧才上线”的模块须在初始化后自行置离线。离线回调只触发一次并置离线，重新喂狗后才会再次计时；不是每隔若干拍周期通知。
 
-使用 CMSIS 软件定时器。局限：
-- 必须绕过 CMSIS 调用 `xTimerReset`
-- ISR 中必须调用 ISR 版本的 `xTimerResetFromISR`
-- 配置复杂，可移植性差
+## 毫秒、拍数与相位
 
-## API
+`TIM::updatePeriodUs()` 根据 PSC、ARR、RCR 与平台时钟取得更新周期。当前板时基配置以 [硬件事实](../../../.claude/conventions/hardware.md) 和生成配置为准。
 
-```c
-Daemon_Instance *Daemon_Register(Daemon_Init_Config_s *config);
-void Daemon_Reset(Daemon_Instance *daemon);
-// 检查在线状态：daemon->online == 1 在线，0 离线
-```
+以定时器周期 `T`（ms）表示，拍数 `N = max(1, round(cycle / T))`，正数的半拍向上取整。每次中断先检查剩余计数：大于零就减一，已经为零才调用离线回调。因此喂狗后第 `N+1` 次定时中断触发回调，计数减到零的那一拍不立即通知。
 
-## 初始化配置
+喂狗可能发生在两次中断之间。忽略中断延迟、同刻事件的先后顺序时，回调相对最后一次喂狗约落在 `N*T` 至 `(N+1)*T`，并非固定等待 `(N+1)*T`。
 
-```c
-Daemon_Init_Config_s config = {
-    .tim_config = { .htim = &htim5 },  // TIM 模式需要指定定时器
-    .cycle = 100,                       // 超时周期（ms）
-    .daemon_callback = my_offline_handler,
-    .device = my_instance,
-};
-Daemon_Instance *daemon = Daemon_Register(&config);
-```
+| 时基 T | cycle（ms） | 拍数 N | 喂狗后至离线回调 |
+|---|---|---|---|
+| 1 ms | 1 | 1 | 约 1～2 ms |
+| 1 ms | 2 | 2 | 约 2～3 ms |
+| 1 ms | 100 | 100 | 约 100～101 ms |
+| 2 ms | 1 或 2 | 1 | 约 2～4 ms |
+| 2 ms | 100 | 50 | 约 100～102 ms |
 
-## 工作流程
+取得不到周期时暂按每毫秒一拍，`cycle=0` 也至少一拍。`setTimbase()` 补绑或换绑时重新换算并重装计数，所以中途调用会重新开始等待；未换绑的 1 ms 时基、正数 cycle 的计数行为与旧版相同。
 
-```
-注册 daemon
-    ↓
-Daemon_Reset() → online=1, count=cycle
-    ↓
-定时器每 1ms 中断
-    ↓
-count-- → count==0 时触发回调
-    ↓
-daemon_callback(device) → 设备离线处理
-    ↓
-daemon->online = 0
-```
+## 调用方
 
-## 定时器配置建议
-
-- **周期**：1ms（所有 daemon 共享同一个定时器）
-- **定时器**：TIM5（已配置）
-- **精度**：1ms 级别
-
-## 注意事项
-
-1. 所有 daemon 实例共享同一个定时器中断
-2. 定时器周期决定 daemon 的最小检测精度
-3. `cycle` 参数是超时倍数，实际超时 = cycle × 定时器周期
-4. TIM 模式下，ISR 中喂狗只需调用 `Daemon_Reset()`
+- VT13、DT7：超时参数 100 ms；有效帧才喂狗，初始化离线、失联清数据。
+- DJI、小电脑通信、裁判系统：超时参数 100 ms。小电脑与裁判的 Daemon 初始化后会立即在线，尚未采用首帧门控；这不能作为已收到数据的依据。
+- 达妙：`Config.daemon_cycle` 为毫秒，默认 100，传 0 也回退至默认值；是否停机由上层使用 `motor_valid_` 决定。
+- Serial：处理满缓冲等待，具体参数与事件语义只维护在 [Serial](../serial/README.md#满缓冲等待)。

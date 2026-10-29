@@ -50,10 +50,9 @@ PID 毫秒到秒的换算规则见 [PID 模块](../../modules/alg/pid/README.md#
 - `CHASSIS_POWER_COEF = 0.005236 = Kt(0.3 N·m/A, 输出轴) × π/180`；`CHASSIS_GET_POWER = fmaxf(0, COEF·I·ω)`。
 - `power_limit <= 0` 表示不限流。二值化（`buffer_energy > 阈值 → 放开；≤ → 限死`）在应用层 `cmd.c` 决策，测试时固定上限（`CHASSIS_POWER_LIMIT`）。
 
-### 速度反馈一阶低通（dji_motor）
-- `dji_motor.c` 的 `DecodeDJIMotor` 对回传速度做一阶低通：`velocity += DJIM_VELOCITY_LPF_ALPHA * (velocity_user - velocity)`，`DJIM_VELOCITY_LPF_ALPHA = 0.15`（≈26Hz 截止 @1kHz）。
-- 原始未滤波值存 `velocity_raw`，宏 `DJIM_GET_VELOCITY_RAW` 可读；`DJIM_GET_VELOCITY` 返回滤波后值。速度环与功率预测/监测均用滤波值，减小速度噪声对限幅的扰动。
-- 目前只滤速度（电流、角度未滤）。
+### 速度反馈
+
+速度环与功率预测直接读取 `motor.velocity_`，反馈口径及驱动变化见 [DJI 电机](../../modules/motor/dji_motor/README.md)。
 
 ## 待调参数
 
@@ -61,7 +60,6 @@ PID 毫秒到秒的换算规则见 [PID 模块](../../modules/alg/pid/README.md#
 |------|------|------|------|
 | 速度环 PID | [chassis.cpp](chassis.cpp) `pid_velocity_config` | 以代码为准 | 位置式，周期单位为秒 |
 | `back_calc_coef` | [chassis.cpp](chassis.cpp) | 以代码为准 | 每拍电流差到积分回灌量的换算系数 |
-| `DJIM_VELOCITY_LPF_ALPHA` | `dji_motor.h` | 0.15 | 速度反馈低通系数 |
 | `CHASSIS_POWER_LIMIT` | `cmd.c` | 20.0 (W) | 底盘功率上限（测试） |
 | `CHASSIS_POWER_DETECT` | `cmd.c` | 30.0 (W) | LED 红检测值（测试） |
 
@@ -82,7 +80,6 @@ cmd（应用层）
 - 整条底盘链跑在 `htim5` 定时器中断里（`chassis_motion` 的 TIM 回调：`ChassisMotion_Update` 解算 → `ChassisVelocity_Tick` 跑环），注册**先于** `DJIMotor_TimbaseSelect(&htim5)`，同一拍 ISR 里底盘先算完电流、dji_motor 紧接着发送——延迟最小、确定性最高。
 - 唯一留在 RTOS 的是 `chassis.c` 里 follow 模式设 `w_rot` + 四轮使能的 `Chassis_Task`（不在实时链上）。
 - `power_limit` 由应用层 `cmd.c` 写入（`Chassis_SetPowerLimit`），测试时固定。
-- 速度滤波改在 `dji_motor` 层，云台(GM6020)/拨弹(M2006)的速度反馈也会一并被滤，需留意那两处是否要重新微调。
 
 ## 规划中（暂不实现）
 

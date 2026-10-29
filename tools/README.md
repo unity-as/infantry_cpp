@@ -1,6 +1,6 @@
-# tools/ - 数学工具集
+# tools/ - 离线工具与回归测试
 
-离线工具目录，存放仿真模型、拟合计算等数学工具。
+离线工具目录，存放仿真、拟合与主机回归测试。模块同步测试入口见 [leg_sync](tests/leg_sync/README.md)，不依赖下列数学库。
 
 ## 目录结构
 
@@ -12,8 +12,9 @@ tools/
 │   ├── calibrate.py            # 主脚本：数据采集 + 拟合 + 输出
 │   ├── ellipsoid_fit.py        # 椭球拟合算法
 │   └── output/                 # 输出校准参数
-└── simulation/                 # 仿真模型（预留）
-    └── README.md
+├── simulation/                 # 仿真模型（预留）
+│   └── README.md
+└── tests/leg_sync/              # 接收 / Daemon / 电机回归
 ```
 
 ## 依赖

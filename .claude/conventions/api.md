@@ -106,7 +106,7 @@ usart.send(data, len);
 TIM tim;
 
 TIM::Config config = {
-    .htim = &htim7,
+    .htim = &htim5,
 };
 tim.init(config);
 tim.setCallback(my_callback, my_module);  // void (*)(void*)
@@ -162,19 +162,9 @@ uint8_t ok = motor.motor_valid_;
 DJIMotor::timbaseSelect(&htim5);
 ```
 
-### Remote (`modules/remote`)
+### VT13 / DT7
 
-无实例类：自由函数 + 全局帧指针（与 C 版数据流对齐）。
-
-```cpp
-const remote_frame_t* rc = Remote_Init(&huart3);
-
-if (Remote_Online()) {
-    int16_t rh = REMOTE_RC_RH();     // 右摇杆水平 ±660
-    uint8_t sw = REMOTE_RC_SWITCH(); // 0=C, 1=N, 2=S
-    // 或直接读 remote_data->...
-}
-```
+两个独立的自由函数接收模块；当前应用使用 VT13。接口、串口约束与在线状态约定见 [VT13](../../project/modules/vt13/README.md) 和 [DT7](../../project/modules/dt7/README.md)。
 
 ### Serial (`modules/serial`)
 
@@ -183,7 +173,7 @@ Serial serial;
 
 Serial::Config config = {
     .usart_handle = &huart6,
-    .htim = &htim7,              // 缓冲满看门狗时基（1ms）
+    .htim = &htim5,              // 缓冲满看门狗时基
     .rx_callback = my_parse,     // void (*)(uint16_t len)
 };
 serial.init(config);
@@ -198,8 +188,8 @@ serial.send(data, len);
 Daemon daemon;
 
 Daemon::Config config = {
-    .tim_config = { .htim = &htim7 },
-    .cycle = 100,                         // 超时周期数（与定时器周期一致）
+    .tim_config = { .htim = &htim5 },
+    .cycle = 100,                         // 超时参数 [ms]，按实际时基换算
     .daemon_callback = my_offline,        // void (*)(void*)
     .device = my_module,
 };

@@ -16,8 +16,8 @@ class Daemon {
 public:
     /// 初始化配置
     struct Config {
-        TIM::Config tim_config;         ///< 时基定时器（建议 1ms 周期）
-        uint32_t cycle;                 ///< 超时周期数（单位与定时器周期一致）
+        TIM::Config tim_config;         ///< 时基定时器
+        uint32_t cycle;                 ///< 超时 [ms]，按 tim_config 的更新周期换成拍数
         void (*daemon_callback)(void*); ///< 离线回调
         void* device;                   ///< 回调 device
     };
@@ -27,8 +27,9 @@ public:
 
 private:
     TIM tim_;                                ///< 时基定时器
-    uint32_t cycle_ = 0;                     ///< 超时周期数
-    uint32_t count_ = 0;                     ///< 剩余周期计数
+    uint32_t timeout_ms_ = 0;                ///< 超时 [ms]
+    uint32_t cycle_ = 0;                     ///< 超时拍数（由 timeout_ms_ 和定时器周期算出）
+    uint32_t count_ = 0;                     ///< 剩余拍数
     void (*daemon_callback_)(void*) = nullptr; ///< 离线回调
     void* device_ = nullptr;                 ///< 回调 device
 
@@ -36,6 +37,8 @@ private:
     static void timerCallback(void* arg);   ///< 替代 Timer_Callback
 
     // —— 实例函数 ——
+    void bindTicks();                       ///< 把 timeout_ms_ 换成当前时基的拍数
+
 public:
     /// 注册/初始化（替代 Daemon_Register，禁堆）
     void init(const Config& config);

@@ -28,7 +28,7 @@ public:
     /// 初始化配置
     struct Config {
         UART_HandleTypeDef* usart_handle;    ///< HAL USART 句柄
-        TIM_HandleTypeDef* htim;             ///< 缓冲区满看门狗时基（1ms）
+        TIM_HandleTypeDef* htim;             ///< 缓冲区满看门狗时基（Daemon 按实际周期换算）
         void (*rx_callback)(uint16_t len);   ///< 数据接收完成回调
     };
 

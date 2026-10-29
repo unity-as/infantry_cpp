@@ -27,9 +27,10 @@ infantry_cpp/
 │   ├── bsp/                 # 板级支持层
 │   ├── modules/             # 功能模块层
 │   └── application/         # 应用层
-└── tools/                   # 离线数学工具
+└── tools/                   # 离线工具与主机回归测试
     ├── accel_calibration/   # 加速度计椭球拟合校准
-    └── simulation/          # 仿真模型（预留）
+    ├── simulation/          # 仿真模型（预留）
+    └── tests/leg_sync/       # 接收、Daemon 与电机同步回归
 ```
 
 源文件约定：实现用 `.cpp` / 头文件 `.h`；**仅纯模板 header-only** 用 `.hpp`（如 `matrix.hpp`）。细则见 `.claude/docs/cpp/cpp_conventions.md`。
@@ -65,7 +66,8 @@ project/modules/
 │   ├── dji_motor/            # DJI 电机（3508 / 2006 / 6020）
 │   ├── dm_motor/             # 达妙关节电机（MIT / 位置速度 / 速度）
 │   └── servo/                # 舵机
-├── remote/                   # 遥控器（自由函数 + 全局帧）
+├── vt13/                     # VT13 图传遥控器（应用层使用）
+├── dt7/                      # DT7 / DR16 独立接收模块（未接入应用）
 ├── serial/                   # 通用串口管理（不定长 + daemon）
 ├── daemon/                   # 离线看门狗
 ├── ahrs/                     # 姿态解算（EKF）

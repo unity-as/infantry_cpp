@@ -37,6 +37,8 @@ private:
     // —— static 函数 ——
 public:
     static void periodElapsedCallback(TIM_HandleTypeDef* htim);  ///< 中断分发
+    /// 更新事件周期 [µs]。句柄为空时返回 0。APB 分频不为 1 时定时器时钟为 2×PCLK。
+    static uint32_t updatePeriodUs(TIM_HandleTypeDef* htim);
 
     // —— 实例函数 ——
     void init(const Config& config);    ///< 替代 TIM_Register（禁堆）
@@ -44,6 +46,7 @@ public:
     void startIT();                     ///< 启动中断
     void stopIT();                      ///< 停止中断
     void setCallback(Callback callback, void* device);  ///< 设置周期中断回调
+    TIM_HandleTypeDef* handle() const { return htim_; }
 };
 #endif  // __cplusplus
 

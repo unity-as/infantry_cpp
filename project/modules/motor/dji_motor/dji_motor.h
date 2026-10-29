@@ -2,10 +2,10 @@
  * @file    dji_motor.h
  * @brief   DJI 电机（C → C++）
  * @note    从 C 版 dji_motor 迁移：struct DJIMotor_Instance → class DJIMotor，
- *          DJIMotor_Register → init、DJIMotor_Set_* → set*，逻辑不变，禁堆。
+ *          DJIMotor_Register → init、DJIMotor_Set_* → set*，禁堆。
  *          原 DJIM_GET_* 宏删除，改为直接读公开字段（motor.angle_ 等）。
  *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
- *          （各组内 public → private）；布局对齐 leg_main（句柄仍为经典 CAN）。
+ *          （各组内 public → private）
  */
 #pragma once
 
@@ -16,8 +16,6 @@
 
 #define DJIM_MAX_INSTANCE 16   // 最大电机实例数
 #define DJIM_MAX_GROUP 6       // 最大发送组数
-
-#define DJIM_VELOCITY_LPF_ALPHA 0.15f   // 速度反馈一阶低通系数（0~1，越小滤波越强）
 
 class DJIMotor {
 public:
@@ -51,15 +49,17 @@ public:
 
     // —— 实例变量 ——
     // 用户坐标 / 解码反馈
-    float angle_ = 0.0f;              // 电机角度 [deg]
-    float velocity_ = 0.0f;           // 电机速度 [deg/s]（已一阶低通滤波）
-    float velocity_raw_ = 0.0f;       // 电机速度原始值 [deg/s]（未滤波）
+    float angle_ = 0.0f;              // 用户侧/输出侧角度 [deg]（解码后已除减速比）
+    float velocity_ = 0.0f;           // 用户侧/输出侧角速度 [deg/s]（未滤波，已除减速比）
     float current_ = 0.0f;            // 电机电流 [A]
     float temperature_ = 0.0f;        // 电机温度 [℃]
     // 指令 / 前馈
     float target_angle_ = 0.0f;       // 位置环目标角度 [deg]
     float target_velocity_ = 0.0f;    // 速度环目标速度 [deg/s]
     float target_current_ = 0.0f;     // 发送给电调的目标电流 [A]
+    int16_t command_current_cnt_ = 0; // 最近生成的 CAN 电流计数（含方向与限幅）
+    uint8_t command_tx_ok_ = 0;       // 最近一次发送组入队结果
+    uint32_t command_tx_fail_count_ = 0; // 所在发送组累计入队失败次数
     float velocity_feedforward_ = 0.0f;  // 速度前馈 [deg/s]
     float current_feedforward_ = 0.0f;   // 力矩前馈 [A]
     // 运行状态
@@ -69,6 +69,7 @@ public:
 private:
     // 子系统
     CAN djim_can_;
+    CAN* tx_group_ = nullptr;
     PID pid_angle_;
     PID pid_velocity_;
     Daemon daemon_lose_;

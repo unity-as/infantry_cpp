@@ -1,83 +1,27 @@
-# serial 模块
+# Serial 串口管理
 
-## 概述
+对 `bsp_usart` 的单块封装，依赖 DMA Circular + ReceiveToIdle。接口见 [serial.h](serial.h)，不包含旧 C 接口或多块 `recv_size` 配置。
 
-串口通信管理模块，作为 bsp_usart 的上层封装，提供不定长数据接收和缓冲区管理。
-
-## 依赖
-
-- 请将串口配置为 DMA + Circular Buffer 模式，本模块依赖空闲中断和 DMA Circular Buffer
-
-```
-serial
-  ↑
-bsp_usart (BSP 层)
-daemon    (模块层，缓冲区满超时检测)
+```cpp
+Serial serial;  // 长生命周期对象
+serial.init({
+    .usart_handle = uart_handle,
+    .htim = timer_handle,        // 已初始化的业务 TIM 句柄
+    .rx_callback = onReceived,   // void (*)(uint16_t len)
+});
+serial.send(data, len);
+// onReceived(len) 中从 serial.recv_buf_ 读取本段数据。
 ```
 
-## Circular 与重启接收
+BSP 的 256 字节环缓冲写位置由回调传入。Serial 从上次解析位置搬到当前空闲位置，跨尾时拼接两段，再调用解析回调。Circular DMA 在 Idle 后仍继续写；BSP 再次启动接收可能返回 HAL_BUSY，不表示写位置归零。本模块不适用于每次 Idle 后从头重启的 Normal DMA。
 
-选用 **DMA Circular** 后，写指针在环缓冲内连续前进，写满绕回头部继续写，**无需每次把指针重置到缓冲区头**，少一次拆/建 DMA，效率更高；本模块把 Idle 回调里的 `Size` 当作环内写位置（`recv_pos`），用 `last_pos` 做差或跨尾拼接。
+## 满缓冲等待
 
-**为何还要重启接收（`USART::serviceInit` / `ReceiveToIdle`）：**
+`full_daemon` 的 `cycle` 从 2 ms 改为 **1 ms**，用于满缓冲后的等待与搬运，不负责设备在线状态。目的是及时交付环尾数据，而不是精确等待一个固定毫秒数。时基取整、额外一拍和相位窗口统一见 [Daemon](../daemon/README.md#毫秒拍数与相位)。
 
-- Idle 事件表示「这一小段收完了」；要继续用 ToIdle 方式盯下一帧，BSP 侧会再调一次接收启动。
-- **Normal 模式**：Idle 后 HAL 会 Abort DMA，必须重启，否则后面字节收不到；重启后从缓冲起点重新开收。
-- **Circular 模式（本模块要求）**：Idle 时 HAL **不** Abort DMA，环上写指针继续往后（绕回头部也是接着写，不是业务上的「复位到头重来」）。此时再调 `ReceiveToIdle` 往往因 `RxState` 仍为 Busy 而返回 `HAL_BUSY`（空操作），真正继续收靠的是还在转的 Circ DMA；调用重启是与 Normal 路径对齐、并确保 ToIdle/Idle 相关状态在可重启时被重新武装，**不要理解成「每次把写指针打回 buffer[0]」**。
+- DMA 写满到环尾时喂狗；再发生满缓冲事件会重新计时。
+- 等待中若先出现 Idle，立即取消看门狗并按当前写位置搬运、回调，无需等到超时。
+- 若等待期间没有上述事件，超时搬运至环尾并回调。代码不在每个字节到达时喂狗，也不轮询 DMA 写指针，因此不能把它当作“最后一个字节之后”的通用静默计时器。
+- 当前初始化也会启动看门狗，未收到数据时仍可能超时搬运一次。此行为本轮保留，并列入待处理项；协议解析层仍须校验长度、帧头和校验码。
 
-## API
-
-```c
-Serial_Instance *Serial_Register(Serial_Init_Config_s *init_config);
-void Serial_Send(Serial_Instance *instance, uint8_t *send_buf, uint16_t send_size);
-```
-
-## recv_size 配置
-
-| recv_size | 模式 | 行为 |
-|-----------|------|------|
-| 0 或未设置 | 单块 | 默认为 1 |
-| = 1 | 单块 | `parse_buf` 直接指向 BSP `recv_buff`，零拷贝 |
-| > 1 | 多块 | 分配 `recv_size × 256` 字节缓冲区 |
-
-## 数据流
-
-```
-UART 硬件 → DMA 接收 → BSP 回调 → Serial_USART_RX_Callback
-                                         ↓
-                              ┌───────────┴───────────┐
-                              │                       │
-                         空闲中断                  全满中断
-                              ↓                       ↓
-                    搬运到 recv_buf            切换块，喂 daemon
-                    触发 rx_callback
-```
-
-## full_daemon 机制
-
-`full_daemon` 不是"串口离线检测"，而是**不完整数据帧处理机制**：
-
-1. 全满中断触发 → 喂狗，开始 2ms 倒计时
-2. 如果 2ms 内收到空闲中断 → 正常搬运数据
-3. 如果 2ms 内没收到空闲中断 → `Serial_FullTimeout()` 强制搬运已收到的数据
-
-用途：处理发送端在数据帧中间停止发送的情况。
-
-## 使用示例
-
-```c
-Serial_Init_Config_s config = {
-    .usart_handle = &huart6,
-    .recv_size = 1,             // 单块模式（零拷贝）
-    .rx_callback = my_callback,
-};
-Serial_Instance *serial = Serial_Register(&config);
-
-// 发送
-Serial_Send(serial, data, sizeof(data));
-
-// 接收（在回调中）
-void my_callback(uint16_t len) {
-    // serial->recv_buf 中有 len 字节数据
-}
-```
+两个工程保持同一参数，但实际精度取决于各自时基。本层只交付数据段，不承诺一次回调对应一个协议帧。

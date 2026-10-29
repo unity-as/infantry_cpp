@@ -1,19 +1,23 @@
 /**
  * @file    dm_motor.cpp
  * @brief   达妙关节电机：解码 + 四模式组帧 + 管理命令 + TIM 心跳
- * @note    自 leg_main 移植；MIT/反馈手拼跨字节字段；0x100/0x200 为 float 小端。
- *          每实例 Config.htim 驱动 update；Daemon 共用同一时基。经典 CAN。
- *          Config.mode 在 init 写一次 CTRL_MODE；运行期 set* 只改给定。
+ * @note    MIT/反馈手拼跨字节字段；0x100/0x200 为 float 小端。
+ *          每实例 Config.htim 驱动 update；Daemon 共用同一时基。CAN。
+ *          Config.mode 为初始 CTRL_MODE；运行期 requestMode() 由定时回调异步切换。
+ *          失能态 update 发 DISABLE，不发控制帧。
  */
 #include "dm_motor.h"
 
 #include "bsp_dwt.h"
+#include "bsp_log.h"
 #include <string.h>
 
 DMMotor* DMMotor::instances_[DM_MOTOR_MAX_INSTANCE] = {};
 uint8_t DMMotor::idx_ = 0;
 
 namespace {
+
+constexpr uint8_t kModeSwitchWaitTicks = 2;
 
 float clamp(float x, float lo, float hi)
 {
@@ -71,6 +75,11 @@ void DMMotor::init(const Config& config)
     control_id_ = config.control_id;
     feedback_id_ = config.feedback_id;
     mode_ = config.mode;
+    pending_mode_ = mode_;
+    desired_mode_ = mode_;
+    mode_switch_status_ = ModeSwitchStatus::Ready;
+    mode_switch_wait_ticks_ = 0;
+    resume_after_mode_switch_ = 0;
     direction_ = config.direction;
     reduction_ratio_ = config.reduction_ratio > 0.0f ? config.reduction_ratio : 1.0f;
     angle_offset_ = -config.initial_angle;
@@ -166,12 +175,12 @@ void DMMotor::packMit(uint8_t out[8], float p, float v, float kp, float kd, floa
 void DMMotor::decode(const uint8_t rx[8])
 {
     const uint8_t id = static_cast<uint8_t>(rx[0] & 0x0Fu);
-    const uint8_t err = static_cast<uint8_t>(rx[0] >> 4);
+    const uint8_t state = static_cast<uint8_t>(rx[0] >> 4);
     if (id != static_cast<uint8_t>(control_id_ & 0x0Fu))
         return;
 
     feedback_raw_.id = id;
-    feedback_raw_.err = err;
+    feedback_raw_.state = state;
     feedback_raw_.pos = static_cast<uint16_t>((rx[1] << 8) | rx[2]);
     feedback_raw_.vel = static_cast<uint16_t>((rx[3] << 4) | (rx[4] >> 4));
     feedback_raw_.torque = static_cast<uint16_t>(((rx[4] & 0x0Fu) << 8) | rx[5]);
@@ -186,6 +195,7 @@ void DMMotor::decode(const uint8_t rx[8])
         angle /= reduction_ratio_;
         velocity /= reduction_ratio_;
     }
+    angle_raw_ = angle;
     if (direction_ == DM_DIRECTION_REVERT) {
         angle = -angle;
         velocity = -velocity;
@@ -195,22 +205,22 @@ void DMMotor::decode(const uint8_t rx[8])
     angle_ = angle + angle_offset_;
     velocity_ = velocity;
     current_ = current;
-    err_ = static_cast<Err>(feedback_raw_.err);  // 未知码原样保留数值
+    state_ = static_cast<State>(feedback_raw_.state);
     mos_temp_ = feedback_raw_.mos_temp;
     rotor_temp_ = feedback_raw_.rotor_temp;
     motor_valid_ = 1;
     daemon_lose_.reset();
 }
 
-void DMMotor::sendCmd(DMMotor_Cmd cmd)
+uint8_t DMMotor::sendCmd(DMMotor_Cmd cmd)
 {
     dm_can_.setTxId(control_id_ + DM_CTRL_ID_MIT);
     memset(dm_can_.tx_buff_, 0xFF, 7);
     dm_can_.tx_buff_[7] = static_cast<uint8_t>(cmd);
-    dm_can_.transmit(1.0f);
+    return dm_can_.transmit(0.01f);
 }
 
-void DMMotor::writeRegU32(uint8_t rid, uint32_t value)
+uint8_t DMMotor::writeRegU32(uint8_t rid, uint32_t value)
 {
     // 参数帧：StdId=0x7FF，{id_lo,id_hi,op=0x55,RID,u32 LE}
     dm_can_.setTxId(DM_PARAM_CAN_ID);
@@ -219,15 +229,18 @@ void DMMotor::writeRegU32(uint8_t rid, uint32_t value)
     dm_can_.tx_buff_[2] = static_cast<uint8_t>(DM_PARAM_WRITE);
     dm_can_.tx_buff_[3] = rid;
     memcpy(&dm_can_.tx_buff_[4], &value, sizeof(uint32_t));
-    dm_can_.transmit(1.0f);
+    return dm_can_.transmit(0.01f);
 }
 
 void DMMotor::update()
 {
+    if (mode_switch_status_ != ModeSwitchStatus::Ready) {
+        updateModeSwitch();
+        return;
+    }
+
     if (!motor_enable_) {
-        dm_can_.setTxId(control_id_ + DM_CTRL_ID_MIT);
-        packMit(dm_can_.tx_buff_, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-        dm_can_.transmit(1.0f);
+        sendCmd(DM_CMD_DISABLE);
         return;
     }
 
@@ -237,11 +250,9 @@ void DMMotor::update()
     switch (mode_) {
     case Mode::Position: {
         float p = angle_motor;
-        float v = target_velocity_;
-        if (direction_ == DM_DIRECTION_REVERT) {
+        float v = target_velocity_ < 0.0f ? -target_velocity_ : target_velocity_;
+        if (direction_ == DM_DIRECTION_REVERT)
             p = -p;
-            v = -v;
-        }
         p *= reduction_ratio_;
         v *= reduction_ratio_;
         dm_can_.setTxId(control_id_ + DM_CTRL_ID_POS_VEL);
@@ -269,26 +280,179 @@ void DMMotor::update()
         break;
     }
 
-    dm_can_.transmit(1.0f);
+    dm_can_.transmit(0.01f);
+}
+
+void DMMotor::updateModeSwitch()
+{
+    switch (mode_switch_status_) {
+    case ModeSwitchStatus::Disabling:
+        if (sendCmd(DM_CMD_DISABLE)) {
+            motor_enable_ = 0;
+            mode_switch_status_ = ModeSwitchStatus::Writing;
+        }
+        break;
+
+    case ModeSwitchStatus::Writing:
+        if (writeRegU32(DM_REG_CTRL_MODE,
+                        static_cast<uint32_t>(modeToEsc(pending_mode_)))) {
+            mode_switch_wait_ticks_ = kModeSwitchWaitTicks;
+            mode_switch_status_ = ModeSwitchStatus::Waiting;
+        }
+        break;
+
+    case ModeSwitchStatus::Waiting:
+        if (mode_switch_wait_ticks_ > 0)
+            --mode_switch_wait_ticks_;
+        if (mode_switch_wait_ticks_ > 0)
+            break;
+
+        mode_ = pending_mode_;
+        primeTargetsForModeSwitch();
+        if (!resume_after_mode_switch_) {
+            enterReady();
+            break;
+        }
+        if (sendCmd(DM_CMD_ENABLE)) {
+            motor_enable_ = 1;
+            enterReady();
+        } else {
+            mode_switch_status_ = ModeSwitchStatus::Enabling;
+        }
+        break;
+
+    case ModeSwitchStatus::Enabling:
+        if (!resume_after_mode_switch_) {
+            enterReady();
+            break;
+        }
+        if (sendCmd(DM_CMD_ENABLE)) {
+            motor_enable_ = 1;
+            enterReady();
+        }
+        break;
+
+    case ModeSwitchStatus::Ready:
+    default:
+        break;
+    }
+}
+
+void DMMotor::primeTargetsForModeSwitch()
+{
+    target_angle_ = angle_;
+    target_velocity_ = 0.0f;
+    target_current_ = 0.0f;
+}
+
+void DMMotor::beginModeSwitch()
+{
+    if (mode_switch_status_ != ModeSwitchStatus::Ready)
+        return;
+    if (desired_mode_ == mode_)
+        return;
+    pending_mode_ = desired_mode_;
+    resume_after_mode_switch_ = motor_enable_;
+    mode_switch_status_ = motor_enable_ ? ModeSwitchStatus::Disabling
+                                        : ModeSwitchStatus::Writing;
+}
+
+void DMMotor::enterReady()
+{
+    mode_switch_status_ = ModeSwitchStatus::Ready;
+    beginModeSwitch();
+}
+
+uint8_t DMMotor::requestMode(Mode mode)
+{
+    desired_mode_ = mode;
+    if (mode_switch_status_ == ModeSwitchStatus::Ready) {
+        beginModeSwitch();
+        return 1;
+    }
+    if (mode_switch_status_ == ModeSwitchStatus::Disabling)
+        pending_mode_ = mode;
+    return 1;
 }
 
 void DMMotor::setEnable(uint8_t motor_enable)
 {
-    motor_enable_ = motor_enable ? 1u : 0u;
+    if (mode_switch_status_ != ModeSwitchStatus::Ready) {
+        resume_after_mode_switch_ = motor_enable ? 1u : 0u;
+        return;
+    }
+
+    const uint8_t want = motor_enable ? 1u : 0u;
+    if (!want && !motor_enable_)
+        return;
+
+    motor_enable_ = want;
     if (motor_enable_)
         sendCmd(DM_CMD_ENABLE);
     else
-        update();
+        sendCmd(DM_CMD_DISABLE);
 }
 
+#if ROBOT_RTT_PRINT && (ROBOT_RTT_REPORT_MOTOR_DETAIL || ROBOT_RTT_REPORT_CLEAR_ERROR)
+const char* DMMotor::stateName(State state)
+{
+    switch (state) {
+    case State::Disabled: return "disabled";
+    case State::Running: return "running";
+    case State::MotorUnrecognized: return "motor-unrecognized";
+    case State::OutputShaftUnrecognized: return "output-shaft-unrecognized";
+    case State::OffsetReadError: return "offset-read-error";
+    case State::EncoderReadError: return "encoder-read-error";
+    case State::OverVoltage: return "over-voltage";
+    case State::UnderVoltage: return "under-voltage";
+    case State::OverCurrent: return "over-current";
+    case State::MosOverTemp: return "mos-over-temp";
+    case State::CoilOverTemp: return "coil-over-temp";
+    case State::LostComm: return "esc-lost-comm";
+    case State::Overload: return "overload";
+    default: return "unknown";
+    }
+}
+#endif
+
+#if ROBOT_RTT_PRINT && ROBOT_RTT_REPORT_CLEAR_ERROR
+void DMMotor::clearError(const char* reason, const char* who)
+{
+    const State before = state_;
+    const uint8_t valid = motor_valid_;
+    const uint8_t queued = sendCmd(DM_CMD_CLEAR_ERROR);
+    if (g_log_reports.clear_error)
+        LOG_INFO(LOG_MOD_MOTOR, who ? who : "DM",
+                 "Clear id=0x%lX fb=0x%lX state=0x%X(%s) valid=%u cause=%s queued=%u",
+                 static_cast<unsigned long>(control_id_), static_cast<unsigned long>(feedback_id_),
+                 static_cast<unsigned>(before), stateName(before), valid,
+                 reason ? reason : "caller", queued);
+}
+#else
 void DMMotor::clearError()
 {
     sendCmd(DM_CMD_CLEAR_ERROR);
 }
+#endif
 
 void DMMotor::setZero()
 {
     sendCmd(DM_CMD_SET_ZERO);
+}
+
+DMMotor::Mode DMMotor::mode() const
+{
+    return mode_;
+}
+
+DMMotor::ModeSwitchStatus DMMotor::modeSwitchStatus() const
+{
+    return mode_switch_status_;
+}
+
+uint8_t DMMotor::modeSwitching() const
+{
+    return mode_switch_status_ != ModeSwitchStatus::Ready;
 }
 
 void DMMotor::setKp(float kp)

@@ -43,13 +43,13 @@ void Shoot_Init(void)
         .reduction_ratio = 19.0f,
         .pid_velocity = {
             .kp = 0.01f,
-            .ki = 0.1f,
+            .ki = 0.05f,
             .kd = 0.0f,
             .mode = PID::Mode::Delta,
             .features = PID::FeatureOutputLimit | PID::FeatureFilter,
             .output_min = -20.0f,
             .output_max = 20.0f,
-            .filter_alpha = 0.3f,
+            .filter_alpha = 0.16333997f,  // 1 - sqrt(1 - 0.3)，对应 TIM5 1 ms；摩擦轮仍关闭
             .period = 0.001f,
         },
     };
