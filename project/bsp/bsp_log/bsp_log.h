@@ -1,5 +1,4 @@
-#ifndef BSP_LOG_H
-#define BSP_LOG_H
+#pragma once
 
 #include "bsp_log_port.h"
 #include "bsp_log_config.h"
@@ -106,6 +105,4 @@ static inline int _fmt_float_frac_abs(float val, int decimals)
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

@@ -1,5 +1,4 @@
-#ifndef BSP_LOG_PORT_H
-#define BSP_LOG_PORT_H
+#pragma once
 
 #include "stm32f4xx_hal.h"
 #include <stdint.h>
@@ -24,6 +23,4 @@ static inline uint32_t bsp_log_get_tick_ms(void)
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

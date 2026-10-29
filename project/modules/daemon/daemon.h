@@ -37,8 +37,6 @@ private:
     static void timerCallback(void* arg);   ///< 替代 Timer_Callback
 
     // —— 实例函数 ——
-    void bindTicks();                       ///< 把 timeout_ms_ 换成当前时基的拍数
-
 public:
     /// 注册/初始化（替代 Daemon_Register，禁堆）
     void init(const Config& config);
@@ -48,4 +46,7 @@ public:
 
     /// 喂狗（替代 Daemon_Reset）
     void reset();
+
+private:
+    void bindTicks();                       ///< 把 timeout_ms_ 换成当前时基的拍数
 };

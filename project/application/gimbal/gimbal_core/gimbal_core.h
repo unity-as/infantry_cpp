@@ -57,8 +57,6 @@ public:
         float pitch_motor_min, pitch_motor_max;    // 编码器零位下的电机角限位 [deg]
     };
 
-    void init(const Config& config);   // 替代 Gimbal_Register
-
     // —— 跨模块读取的状态 ——
     AHRS* ahrs_;               // AHRS（gimbal 层 SyncTarget 读其输出）
     Axis yaw_;                 // yaw 轴
@@ -67,7 +65,18 @@ public:
     float pitch_min_, pitch_max_;   // AHRS pitch 限位 [deg]
     float pitch_motor_min_, pitch_motor_max_;   // 电机角限位 [deg]
 
-    // —— API ——
+private:
+    // —— static 变量 ——
+    static Gimbal* instances_[GIMBAL_MAX];     // 实例注册表
+    static uint8_t idx_;                       // 已注册数
+    static TIM tim_;                           // 更新定时器
+
+    // —— static 函数 ——
+    static void timCallback(void* device);     // 替代 Gimbal_TimHandler
+
+public:
+    // —— 实例函数 ——
+    void init(const Config& config);   // 替代 Gimbal_Register
     void enablePitch(uint8_t enable);                          // 替代 Gimbal_Enabale_Pitch
     void enableYaw(uint8_t enable);                            // 替代 Gimbal_Enabale_Yaw
     void enable(uint8_t enable);                               // 替代 Gimbal_Enable
@@ -84,9 +93,4 @@ public:
 private:
     void axisUpdate(Axis& axis);               // 替代 Gimbal_AxisUpdate
     void update();                             // 替代 Gimbal_Update
-    static void timCallback(void* device);     // 替代 Gimbal_TimHandler
-
-    static Gimbal* instances_[GIMBAL_MAX];     // 实例注册表
-    static uint8_t idx_;                       // 已注册数
-    static TIM tim_;                           // 更新定时器
 };

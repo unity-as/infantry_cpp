@@ -5,8 +5,7 @@
         用于定义电机的一些参数，例如ID、编码器线数等。用于电机ID映射，数值设置等。
  */
 
-#ifndef DJI_MOTOR_DEF_H
-#define DJI_MOTOR_DEF_H
+#pragma once
 
 #include <stdint.h>
 
@@ -101,5 +100,3 @@ static const uint16_t djim_current_cnt_range[DJIMotor_Type_COUNT] =
 #ifdef __cplusplus
 }
 #endif
-
-#endif //DJI_MOTOR_DEF_H

@@ -1,5 +1,4 @@
-#ifndef IST8310_REG_H
-#define IST8310_REG_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +42,4 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

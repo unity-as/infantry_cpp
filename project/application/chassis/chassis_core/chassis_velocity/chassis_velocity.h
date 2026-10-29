@@ -30,16 +30,8 @@ public:
         float back_calc_coef;           // 每拍电流差到积分回灌量的系数 [误差·s/A]
     };
 
-    void init(const Config& config);                           // 替代 ChassisVelocity_Register
-    void setTarget(const float omega_deg[CHASSIS_WHEEL_NUM]);  // 替代 ChassisVelocity_SetTarget
-    void tick();                                               // 替代 ChassisVelocity_Tick
-    void setEnable(uint8_t enable);                            // 替代 ChassisVelocity_SetEnable
-    void setPowerLimit(float limit);                           // 替代 ChassisVelocity_SetPowerLimit
-    float getPower();                                          // 替代 ChassisVelocity_GetPower
-
 private:
-    void backCalc(float scale);   // 替代 ChassisVelocity_BackCalc
-
+    // —— 实例变量 ——
     DJIMotor motor_[CHASSIS_WHEEL_NUM];        // 四轮电机实例 [rf, lf, lr, rr]
     PID pid_velocity_[CHASSIS_WHEEL_NUM];      // 四轮外置速度环（位置式）
     float target_omega_[CHASSIS_WHEEL_NUM] = {};  // 本周期目标速度 (deg/s, 输出轴)
@@ -49,4 +41,16 @@ private:
     float power_total_ = 0.0f;                 // 实测总功率 (W)，供监测
     float scale_ = 1.0f;                       // 当前缩放比 k（1=未限流）
     uint8_t enable_ = 0;                       // 使能：0=速度环不跑、PID 复位、输出 0 电流
+
+public:
+    // —— 实例函数 ——
+    void init(const Config& config);                           // 替代 ChassisVelocity_Register
+    void setTarget(const float omega_deg[CHASSIS_WHEEL_NUM]);  // 替代 ChassisVelocity_SetTarget
+    void tick();                                               // 替代 ChassisVelocity_Tick
+    void setEnable(uint8_t enable);                            // 替代 ChassisVelocity_SetEnable
+    void setPowerLimit(float limit);                           // 替代 ChassisVelocity_SetPowerLimit
+    float getPower();                                          // 替代 ChassisVelocity_GetPower
+
+private:
+    void backCalc(float scale);   // 替代 ChassisVelocity_BackCalc
 };

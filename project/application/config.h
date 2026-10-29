@@ -1,5 +1,4 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#pragma once
 
 // 整车可调参数唯一入口；应用层组装各模块 Config，下层不依赖本文件。
 // ======= 子系统初始化（各项独立：0=跳过，1=初始化）=======
@@ -216,4 +215,3 @@ inline constexpr PID::Config SHOOT_MAG_VELOCITY_PID = {
 };
 
 #endif // __cplusplus
-#endif // CONFIG_H

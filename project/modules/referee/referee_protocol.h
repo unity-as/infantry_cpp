@@ -1,5 +1,4 @@
-#ifndef REFEREE_PROTOCOL_H
-#define REFEREE_PROTOCOL_H
+#pragma once
 
 #include "stdint.h"
 
@@ -285,5 +284,3 @@ typedef enum {
 #ifdef __cplusplus
 }
 #endif
-
-#endif // REFEREE_PROTOCOL_H
