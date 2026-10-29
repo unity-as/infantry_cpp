@@ -1,30 +1,9 @@
-# tools/ - 离线工具与回归测试
+# 离线工具与主机回归
 
-离线工具目录，存放仿真、拟合与主机回归测试。模块同步测试入口见 [leg_sync](tests/leg_sync/README.md)，不依赖下列数学库。
+| 用途 | 入口 |
+|---|---|
+| 加速度计椭球拟合校准 | [accel_calibration](accel_calibration/README.md) |
+| CRC 参考表生成 | [CRC 说明](../project/modules/crc/README.md#验证入口) |
+| 接收、计时、PID 与电机主机回归 | [leg_sync](tests/leg_sync/README.md) |
 
-## 目录结构
-
-```
-tools/
-├── README.md                   # 本文件
-├── accel_calibration/          # 加速度计椭球拟合校准
-│   ├── README.md               # 使用说明
-│   ├── calibrate.py            # 主脚本：数据采集 + 拟合 + 输出
-│   ├── ellipsoid_fit.py        # 椭球拟合算法
-│   └── output/                 # 输出校准参数
-├── simulation/                 # 仿真模型（预留）
-│   └── README.md
-└── tests/leg_sync/              # 接收 / Daemon / 电机回归
-```
-
-## 依赖
-
-- Python 3.8+
-- numpy
-- scipy
-- matplotlib（可选，用于可视化验证）
-
-安装：
-```bash
-pip install numpy scipy matplotlib
-```
+分别按对应入口安装依赖和执行命令，不给整个 tools 目录统一安装算法库。新增工具时再登记可运行入口，不预建空说明。

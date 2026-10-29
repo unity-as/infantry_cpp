@@ -1,120 +1,28 @@
-# file.md - 项目文件结构
+# 工程结构
 
-## 分层架构
+本文只维护目录职责和依赖边界，不手工枚举每个源文件。
 
-```
-infantry_cpp/
-├── Core/                    # CubeMX 生成的 HAL 初始化（不手动改）
-│   ├── Inc/
-│   └── Src/
-├── Drivers/                 # HAL 库（CubeMX 生成，不手动改）
-├── Middlewares/             # FreeRTOS（CubeMX 生成，不手动改）
-├── cmake/                   # CMake 工具链
-├── .claude/                 # ★ AI 上下文
-│   ├── CLAUDE.md            # 项目入口（背景 + 目录导航 + 红线）
-│   ├── conventions/         # 本项目规则 + 事实
-│   │   ├── api.md           # API 风格（全局对象 + Config + init）
-│   │   ├── file.md          # 本文件（分层 + 文件结构）
-│   │   ├── hardware.md      # 硬件事实（电机表 + 外设分配）
-│   │   └── docs.md          # 文档放哪 / 何时改 / impl 五件套
-│   ├── docs/                # impl/ 实现；cpp/ 规范；guide/ 启动；deprecated/；plan.md
-│   ├── records/             # todo/current+backlog
-│   ├── reference/           # 外部资料（手册 / 协议 / 规则）
-│   ├── plans/               # 未落地方案 + cpp_plans/
-│   ├── tools/               # 技能自带工具 / 脚本
-│   └── skills/              # 技能（行为）
-├── project/                 # ★ 业务代码全部在此（C++）
-│   ├── bsp/                 # 板级支持层
-│   ├── modules/             # 功能模块层
-│   └── application/         # 应用层
-└── tools/                   # 离线工具与主机回归测试
-    ├── accel_calibration/   # 加速度计椭球拟合校准
-    ├── simulation/          # 仿真模型（预留）
-    └── tests/leg_sync/       # 接收、Daemon 与电机同步回归
-```
+| 目录或入口 | 职责 |
+|---|---|
+| `README.md` / `AGENTS.md` | 使用导航 / 协作入口 |
+| `Core/`、`Drivers/`、`Middlewares/` | CubeMX 初始化、HAL 与 FreeRTOS 等依赖；修改边界见 [AGENTS](../../AGENTS.md) |
+| `cmake/`、`CMakeLists.txt`、`CMakePresets.json` | 工具链、源码收集与构建配置 |
+| `project/bsp/` | HAL 外设封装，不依赖 modules 或 application，不含业务逻辑 |
+| `project/modules/` | 电机、接收、通信、姿态和算法；可依赖 bsp，不依赖 application |
+| `project/application/` | 整车入口、参数、cmd、底盘、云台、发射；可依赖 modules 与 bsp |
+| `tools/` | 离线标定与主机回归，见 [工具说明](../../tools/README.md) |
+| `.claude/conventions/` | 工程约定、硬件事实、文档归属 |
+| `.claude/docs/` | 索引、统一编码规范、整车说明、操作指南 |
+| `.claude/plans/` | 尚未实施的设计；统一从 [当前待办](../records/todo/current.md)进入 |
+| `.claude/records/` | 活动待办和有版本边界的验证记录 |
+| `.claude/reference/` | 外部参考资料，不视为本项目实现 |
+| `.claude/skills/` | 本项目专用技能 |
+| `doc/` | 早期迁移审查的历史快照 |
+| `build/`、`.cache/` | 本机生成产物，不作为维护文档来源 |
 
-源文件约定：实现用 `.cpp` / 头文件 `.h`；**仅纯模板 header-only** 用 `.hpp`（如 `matrix.hpp`）。细则见 `.claude/docs/cpp/cpp_conventions.md`。
+## 新增或移动文件
 
-## 三层职责
+源文件命名、头文件和模板约定见 [C++ 规范](../docs/cpp/cpp_conventions.md)。
+[CMakeLists.txt](../../CMakeLists.txt) 自动扫描 `project/` 中的 C/C++ 文件及头文件目录；新增文件后核对实际构建收集结果和 include，不因普通模块文件新增而手写构建列表。
 
-### bsp/ — 板级支持层
-
-直接操作 HAL，提供外设抽象。**不含业务逻辑。**  
-不可 include `modules/` 或 `application/`。
-
-```
-project/bsp/
-├── bsp_can/          # CAN 收发（过滤器、中断路由）
-├── bsp_usart/        # UART（DMA + 空闲中断）
-├── bsp_spi/          # SPI（软件片选、轮询）
-├── bsp_tim/          # 定时器中断回调路由
-├── bsp_gpio/         # GPIO
-├── bsp_pwm/          # PWM
-├── bsp_dwt/          # DWT 微秒计时
-├── bsp_adc/          # ADC
-├── bsp_i2c/          # 硬件 I2C
-└── bsp_log/          # 日志（含 SEGGER RTT）
-```
-
-### modules/ — 功能模块层
-
-封装外设，提供业务级接口。**可依赖 bsp，不可依赖 application。**
-
-```
-project/modules/
-├── motor/
-│   ├── dji_motor/            # DJI 电机（3508 / 2006 / 6020）
-│   ├── dm_motor/             # 达妙关节电机（MIT / 位置速度 / 速度）
-│   └── servo/                # 舵机
-├── vt13/                     # VT13 图传遥控器（应用层使用）
-├── dt7/                      # DT7 / DR16 独立接收模块（未接入应用）
-├── serial/                   # 通用串口管理（不定长 + daemon）
-├── daemon/                   # 离线看门狗
-├── ahrs/                     # 姿态解算（EKF）
-├── BMI088/                   # BMI088 IMU
-├── ist8310/                  # 磁力计
-├── imu_temp/                 # IMU 温度控制
-├── referee/                  # 裁判系统
-├── minipc_comm/              # 小电脑通信
-├── power/                    # 功率管理
-├── rgb_led/                  # RGB 灯
-├── crc/                      # CRC
-├── alg/                      # 纯算法（不依赖外设）
-│   ├── pid/
-│   ├── kalman/               # 卡尔曼滤波
-│   └── mahony/
-└── utils/
-    └── matrix.hpp            # 矩阵/向量（header-only，CMSIS-DSP）
-```
-
-### application/ — 应用层
-
-机器人控制逻辑。**可依赖 modules 与 bsp。**
-
-```
-project/application/
-├── robot.cpp / robot.h       # 入口：Robot_Init() + Robot_Task()
-├── config.h                  # 整车可调参数（开关、接线、操作、PID 等）
-├── cmd/                      # 指令中枢（遥控/键鼠/自瞄 → 各子系统）
-├── chassis/                  # 底盘（含 chassis_core：motion / velocity）
-├── gimbal/                   # 云台（含 gimbal_core）
-└── shoot/                    # 射击
-```
-
-## 文件增删检查清单
-
-新增或删除文件后，确认：
-
-1. **更新本文件**：目录树与 `project/` 实际一致  
-2. **CMakeLists.txt**：auto-scan `project/`，一般无需手改  
-3. **头文件路径**：`#include` 正确（auto-scan 会加 include 目录）  
-4. **层级依赖**：
-   - bsp 不可 include modules / application  
-   - modules 可 include bsp  
-   - application 可 include bsp 与 modules  
-5. **API 风格**：新建 bsp/modules 遵循 `api.md`（class + `Config` + `init`，禁堆）
-6. **文档**：已落地模块考虑 `docs/impl/<模块>/` 五件套；未落地放 `plans/`。见 `docs.md`
-
-## 外设分配与硬件
-
-外设分配表、电机表、机械结构见 `.claude/conventions/hardware.md`（唯一真相源）。
+模块说明放在代码旁。只有目录职责变化才改本文；链接或文档归属变化按 [文档规则](docs.md#何时更新)处理。

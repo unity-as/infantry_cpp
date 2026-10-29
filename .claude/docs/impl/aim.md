@@ -1,119 +1,34 @@
-# 视觉 → 自瞄链路
+# 自瞄与小电脑契约
 
-> 最后更新：2026-08-16
-> 覆盖范围：minipc 视觉检测 → USART 通信 → STM32 自瞄控制 的完整链路
-> 代码入口：`cmd.c Cmd_AutoAim()` → `gimbal.c Gimbal_AutoAim()`；通信：`modules/minipc_comm/`
+本文负责 STM32 端的通信消费、符号、更新节奏及开火门控。小电脑算法没有包含在本仓库，不能根据早期笔记推定其当前 EKF、弹道模型或跟踪状态。
 
-## 一、链路总览
+## 数据入口
 
-```
-minipc(视觉, 传统CV)                          STM32(C板)
-────────────────────                        ────────────────────────────
-检测装甲板灯条 / 红蓝颜色
-  ↓
-EKF 估计敌方底盘旋转中心 + 旋转角速度
-  ↓
-预测 4 个装甲板位置 + 弹道(弹速/抛物线)
-  ↓
-选最优 → 角度误差 (yaw, pitch)
-  │   USART6, 115200 8N1
-  │   15字节 {0x5A, yaw, pitch, can_fire, crc16}
-  ▼
-                                    minipc_comm (CRC16 + 100ms 看门狗)
-                                      ↓ minipc_data_flag
-                                    Cmd_AutoAim()
-                                      ↓ Gimbal_AutoAim(yaw, -pitch)
-                                    aim_pid (PD, 10ms) → 速度环(PID, 1ms)
-                                      ↓ 电流 → GM6020 yaw/pitch
-```
+帧字段、长度和打包布局以 [minipc_comm.h](../../../project/modules/minipc_comm/minipc_comm.h) 为准，解析和发送见 [minipc_comm.cpp](../../../project/modules/minipc_comm/minipc_comm.cpp)。
 
-## 二、视觉侧（minipc）
+- 小电脑下发 yaw、pitch 和 can_fire；当前帧没有目标速度或独立目标有效字段。
+- 长度、帧头、CRC 通过后更新缓存，置 `minipc_data_flag` 并喂 Daemon。
+- STM32 回传姿态、弹速和检测颜色；Cmd_Task 按配置的调用次数发送，弹速/颜色取自裁判缓存。
+- Minipc_Online 返回 Daemon 状态，首帧与超时边界见 [Daemon](../../../project/modules/daemon/README.md#调用方)，不能把它当目标存在证明。
 
-### 视觉方案
-- **传统视觉**（OpenCV），检测**敌方小车的装甲板灯条**。
-- 红蓝区分：看**灯条 + 装甲板颜色**。
-- 视觉**自带陀螺仪**，不读 C 板的 AHRS —— 用来建立环境参考系的绝对方向。
+## 输入与控制链
 
-### 坐标系与参考系
-- 视觉坐标系：**右正、下正**，中心原点（图像坐标），发的是"**目标相对当前**"的位置。
-- 参考系方向：固定在**环境/赛场**（如地上箭头），不随车转。
-- 参考系原点：**跟随摄像头**（随车移动）。
-- 已忽略：车身平移、摄像头偏离云台旋转中心的杠杆臂。
+[cmd.cpp](../../../project/application/cmd/cmd.cpp) 在遥控右 FN 或鼠标右键按下、且小电脑在线时进入自瞄；进入时重置自瞄 PID，退出时同步手动目标。
 
-### EKF 与弹道预测
-- EKF 估计：敌方**底盘旋转中心** + **旋转角速度**。
-- 预测命中角：考虑**弹速** + **抛物线**（重力下坠），通过调参实现。
-- 预测**四个装甲板**位置，挑选一个最好命中的，作为给定角度误差输出。
-- 因此返回的 yaw/pitch 是"发弹后能命中某装甲板"的**预测角度偏差**，不是当前目标的即时方向。
+`Cmd_AutoAim` 仅在新数据标志置位时消费缓存并清标志，传入 `Gimbal_AutoAim(rx.yaw, -rx.pitch)`。输入契约按现有注释是视觉“目标相对当前”的右正/下正误差；传给 Gimbal_AutoAim 的误差语义为“当前 − 目标”。这里只描述代码变换，传感器角度的坐标口径另见 [AHRS](../../../project/modules/ahrs/README.md#坐标系定义)。
 
-### 更新率 / 通信
-- 目标发送频率 **200Hz**，实际受小电脑算力影响约 **150Hz+**（开画面会分散算力）。
-- 串口 **115200 8N1**。
+[Gimbal_AutoAim](../../../project/application/gimbal/gimbal.cpp) 对 pitch 转换误差符号、调用双重限位再转换回来，独立自瞄 PID 的输出作为速度指令。位置与速度控制、机械限位边界见 [云台](../../../project/application/gimbal/README.md)。增益、限幅、前馈数值只维护在 [config.h](../../../project/application/config.h)。
 
-## 三、通信（minipc_comm 模块）
+## 更新节奏
 
-### 接收帧（minipc → STM32，15 字节）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| header | uint8 | 0x5A |
-| yaw | float | 预测命中角误差（相对相机，deg） |
-| pitch | float | 预测命中角误差（相对相机，deg） |
-| can_fire | int32 | 视觉允许发弹；自瞄下扳机/左键须非 0 才 Shoot_Fire |
-| crc16 | uint16 | CRC16 校验 |
+`GIMBAL_AIM_FREQ_DIV` 对 Gimbal_AutoAim 的调用次数计数；调用来自被消费的新帧，不是固定周期定时器。因此它不能直接写成“10 ms 自瞄环”，实际更新间隔受帧率、缓存覆盖和调度影响。
 
-### 发送帧（STM32 → minipc，20 字节）— **预留、未发送**
-| 字段 | 说明 |
-|------|------|
-| header | 0xA5 |
-| detect_color | 敌方颜色（预留，未用） |
-| roll/pitch/yaw | 云台姿态（视觉自带陀螺仪，故未发） |
-| bullet_speed | 弹速（预留） |
-| crc16 | CRC16 校验 |
+自瞄 PID 的 period 是独立配置的秒数，当前源码未按新帧间隔更新它。时间语义见 [PID](../../../project/modules/alg/pid/README.md#参数与时间口径)，需核对实际节奏的事项由 [当前待办](../../records/todo/current.md#规范与行为待决定)跟进，本轮仅校正文档。
 
-> 视觉坚持自带陀螺仪，不从 C 板读姿态，所以 Tx 帧整体预留、`Minipc_Send()` 当前未被调用。
+## 开火与丢失边界
 
-### 在线检测
-- `Daemon` 看门狗，100ms 周期；CRC16 校验通过即 `Daemon_Reset`。
-- `Minipc_Online()` 决定自瞄是否可进入。
+cmd 在自瞄状态要求“扳机/左键且 can_fire 非零”才调用 Shoot_Fire；手动状态不检查 can_fire。实际发射机构是否初始化、热量与队列边界见 [发射](../../../project/application/shoot/README.md)。
 
-## 四、STM32 侧自瞄控制
+当前 `lose` 判断被注释，没有独立的目标丢失状态机。收到零误差不能一概解释为目标丢失，也不能解释为已自动退出自瞄。小电脑超时回调为空，不清除缓存；新的目标有效/丢失、恢复和开火许可策略需与通信协议一起确认。
 
-### 触发 / 退出
-- 进入条件：遥控**右功能键 FN**（或键鼠**鼠标右键**）`&& Minipc_Online()`。
-- 进入时 `Gimbal_AutoAim_Reset()`（重置 aim PID 积分）；退出时 `Gimbal_SyncTarget()`。
-
-### 符号约定（重要）
-- 视觉：右正、下正，发"目标相对当前"。
-- 我们：左正、上正。
-- 转换两步：① yaw 取反（右正→左正）② 两轴同时取反（目标相对→当前相对）。
-- 叠加：**yaw 两次取反抵消 → 直接传；pitch 一次取反 → 传 `-pitch`**。
-- 已在 `cmd.c Cmd_AutoAim()` 加注释说明；`Gimbal_AutoAim` 传入参数语义 = "当前相对目标的偏差"。
-
-### 控制结构
-- `Cmd_AutoAim()`：`minipc_data_flag` 拉取 → `Gimbal_AutoAim(yaw, -pitch)`。
-- `Gimbal_AutoAim()`：10ms 分频；pitch 软件限位；aim_pid 输出 → `Gimbal_SetVelocity`（速度模式）→ 速度环。
-- 自瞄位置环用**纯 PD（ki=0）**，不加 I（目标在动，I 会造成 windup/过冲）。
-- 手动模式走"位置环(P) → 速度环"；自瞄模式走"aim_pid → 速度环"，两套位置环并存。
-
-## 五、关键参数
-
-| 项 | 值 |
-|----|----|
-| 自瞄 yaw PID | kp=4.0, ki=0, kd=0.01 |
-| 自瞄 pitch PID | kp=4.5, ki=0, kd=0.01 |
-| 速度环 yaw | kp=0.01, ki=0.0005（PI） |
-| 速度环 pitch | kp=0.005, ki=0.00006, kd=0.005（D on measurement） |
-| pitch 重力前馈（电流） | -0.30（标定值） |
-| pitch 软件限位 | -30.7° ~ +10.5° |
-| 自瞄分频 | 10ms（速度环 1ms） |
-
-## 六、近似与已知问题
-
-- **忽略车身平移** + **摄像头偏离旋转中心的杠杆臂**（视觉侧已知近似）。
-- 视觉侧的 EKF/弹道预测已含提前量，STM32 侧自瞄位置环为纯 PD，无速度前馈。
-
-## 七、待办
-
-- [ ] **目标丢失处理**：暂无固定实现（旧实现"退出自瞄 + 重置 PID"存在问题，已废弃）。当前 `lose` 判据在 `cmd.c` 算了未用，收到 (0,0,0) 时自瞄仍保持、误差归零、云台停住。
-- [x] **`can_fire` 接入**：自瞄下扳机/左键 + `can_fire != 0` 才 `Shoot_Fire`；手动不受限。
-- [ ] 自瞄速度前馈 / 目标速度估计：见 [feedforward.md](feedforward.md)（前馈源 = 视觉 EKF 速度，需帧扩展）。
+速度前馈的未实施设计见 [前馈方案](../../plans/feedforward.md)，活动状态统一在 [当前待办](../../records/todo/current.md)。

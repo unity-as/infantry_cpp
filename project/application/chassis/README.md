@@ -1,96 +1,36 @@
-# chassis 模块（底盘控制）
+# 底盘
 
-## 概述
+入口为 [chassis.cpp](chassis.cpp) / [chassis.h](chassis.h)。整车初始化与参数归属见 [系统架构](../../../.claude/docs/impl/architecture.md)，硬件接线见 [硬件事实](../../../.claude/conventions/hardware.md)。
 
-底盘应用层，负责 cmd 指令 → 四轮电流指令的完整链路。分两个下层模块：
+## 职责与执行流程
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| [1] 运动学 | `chassis_core/chassis_motion/` | 收底盘速度 (v, θ, w) → 麦轮解算 → 四轮目标速度 ω* |
-| [2] 速度环+功率 | `chassis_core/chassis_velocity/` | 收 ω* → 速度环 → 电流 → 预测功率 → 缩放限幅 → 反算抗饱和 → 发电流 |
+`chassis_cmd` 是应用指令入口，包含移动速度、方向、旋转速度、云台电机角、模式与使能。顶层只接指令和功率接口，内部持有 `ChassisMotion`；core 不暴露给 cmd。
 
-顶层 `chassis.c/.h` 只做指令对接（`chassis_cmd`：v / w_rot / mode / enable）与转发（`Chassis_SetPowerLimit` / `Chassis_GetPower`），不干活。
+`Chassis_Init()` 从 [config.h](../config.h) 组装几何、接线、速度环和积分回灌配置，初始化 motion，再创建 `Chassis_Task`。
 
-> [1] 由原 `chassis_core` 更名而来；[2] 由原 `chassis_velocity` 与 `chassis_power` 合并而来（功率限幅并入速度环链路，`chassis_power` 已删除）。三个子模块各自独立目录，统一放在 `chassis_core/` 下。
+- RTOS 任务：更新四轮使能，搬运 v/theta，根据模式填写 w_rot。
+- [motion 回调](chassis_core/chassis_motion/chassis_motion.cpp)：解算四轮目标速度，然后调用 velocity.tick。
+- [velocity.tick](chassis_core/chassis_velocity/chassis_velocity.cpp)：外置速度 PID → 预测功率 → 等比缩放 → 写电流指令 → 积分回灌；随后更新反馈功率监测量。
+- DJI 驱动自己的回调负责总线发送；注册顺序由整车初始化决定，不保证与计算处于同一拍的新指令发送顺序。
 
-## 数据流
+## 模式与接口
 
-```
-cmd(v, θ, w) ── chassis.c（指令对接）
-  ├─ [1] chassis_motion：cmd → 麦轮解算 → ω*[4]（deg/s，全向取反）
-  │        └─ ChassisVelocity_SetTarget(velocity, ω*)
-  └─ [2] chassis_velocity（1kHz Tick）：
-        速度环(ω*→I_raw) → 预测功率 P=ΣKt·I_raw·ω → 缩放比 k=min(1, limit/P)
-        → 限幅电流 I=k·I_raw → 反算抗饱和 → DJIMotor_Set_Current(4 轮)
-```
+| 模式 | 行为 |
+|---|---|
+| NO_ROTATION | 使用指令里的手动 w_rot；切入时清一次旧指令 |
+| FOLLOW | 将云台电机角折叠到配置周期内，以纯 P 得到 w_rot |
+| LITTLE_TOP | 当前分支将 w_rot 置零；设计入口见 [待办](../../../.claude/records/todo/current.md#功能待办) |
 
-## 关键机制
+对外接口以头文件为准：设置模式、设置功率上限、读取估算功率。运动学输入单位、轮序与极性见 [运动学](kinematics.md)。
 
-### 职责划分
-- **[1] motion 只管运动学**：持有 `v/θ/w_rot` 输入，解算四轮目标速度派发给 [2]，不碰电机、不碰电流、不碰功率。
-- **[2] velocity 管四轮电机 + 速度环 + 功率**：注册四轮电机与四路速度环，`ChassisVelocity_Tick` 一次跑完「速度环 → 预测功率 → 缩放 → 限幅 → 反算 → 发电流」。
+## 功率与积分回灌
 
-### 速度环外置（[2]）
-- 速度环从 `dji_motor` 内部移出，改由 `chassis_velocity` 用**位置式** PID（`PID_MODE_POSITION`）实现。
-- 用位置式的原因：反算抗饱和要扣「累加积分」；增量式的 integral 只是本周期项，扣不动。
+四轮速度环使用位置式 PID，反馈直接读 DJI 的 `velocity_`。功率预测为各轮 `max(0, COEF × I_raw × velocity)` 之和，固定系数定义在 [chassis_velocity.h](chassis_core/chassis_velocity/chassis_velocity.h)。这是驱动反馈上的模型估计，不等同于裁判或电源输入功率实测。
 
-### 积分反算抗饱和（[2]）
-- pid 库自带抗饱和只感知自身 output_min/max，**不感知功率控制对电流的二次限流**。
-- 功率控制限流后，用 `PID::setIntegral()` 回灌：`integral -= (1-k)·I_raw·coef`。
+`power_limit <= 0` 表示不限流；预测值超过正上限时，四轮电流同乘 `scale = limit / power_pred`。速度环内部的输出限制不知道后级缩放，因此通过 `PID::setIntegral()` 扣除 `(1-scale) × I_raw × back_calc_coef`。
 
-#### 时间单位与回灌系数
+积分单位为误差·s，系数把每拍电流差换成积分回灌量，不是自动按采样周期离散化的连续跟踪器，不能直接当 `ki/kp`。PID 换算见 [PID 模块](../../modules/alg/pid/README.md#参数与时间口径)。
 
-积分单位为误差·s，`coef` 把每拍被限掉的电流差转换为积分回灌量，单位为误差·s/A。
-PID 毫秒到秒的换算规则见 [PID 模块](../../modules/alg/pid/README.md#参数与时间口径)。
-本次保持原回灌作用，将旧系数除以 1000；当前参数以 [config.h](../config.h) 的 `CHASSIS_BACK_CALC_COEF` 为准。
-该实现每拍直接扣积分，不是自动按采样周期离散化的连续跟踪器，不能将系数直接当作 `ki/kp`。
+应用层 [Cmd_Task](../cmd/cmd.cpp) 根据裁判缓冲能量决策：高于释放阈值时传入 0；否则传入“裁判功率上限 + 裕量 −（缓冲上限 − 当前缓冲）”。这些阈值和全部调参只在整车配置维护。当前代码未在这段决策前检查裁判在线；低于等于零的计算结果仍会按上述不限流语义处理，见 [待办](../../../.claude/records/todo/current.md#规范与行为待决定)。
 
-### 功率限幅（[2]）
-- 纯限幅：`P_pred = Σ Kt·I_raw·ω`，`scale = min(1, limit/P_pred)`，`I = scale·I_raw`。负功率（倒灌）算 0。
-- `CHASSIS_POWER_COEF = 0.005236 = Kt(0.3 N·m/A, 输出轴) × π/180`；`CHASSIS_GET_POWER = fmaxf(0, COEF·I·ω)`。
-- `power_limit <= 0` 表示不限流。应用层 `cmd.cpp` 在缓冲能量大于配置阈值时传入 0；否则传入“裁判功率上限 + 配置裕量 −（缓冲能量上限 − 当前能量）”。
-
-### 速度反馈
-
-速度环与功率预测直接读取 `motor.velocity_`，反馈口径及驱动变化见 [DJI 电机](../../modules/motor/dji_motor/README.md)。
-
-## 待调参数
-
-所有可调值以 [config.h](../config.h) 为准，应用层只读取并传参。
-
-| 参数 | 配置名 | 说明 |
-|------|--------|------|
-| 速度环 PID | `CHASSIS_WHEEL_VELOCITY_PID` | 位置式，完整功能位/增益/限幅/滤波/秒制周期 |
-| 积分回灌 | `CHASSIS_BACK_CALC_COEF` | 每拍电流差到积分回灌量的换算系数 |
-| 几何和接线 | `CHASSIS_WHEEL_RADIUS_M`、`CHASSIS_LENGTH_M`、`CHASSIS_WIDTH_M`、`CHASSIS_MOTOR_ID_*` 等 | 麦轮解算与电机初始化 |
-| 跟随 | `CHASSIS_FOLLOW_PERIOD_DEG`、`CHASSIS_FOLLOW_GAIN` | 误差折叠周期与 P 增益 |
-| 缓冲能量 | `CHASSIS_BUFFER_MAX_J`、`CHASSIS_BUFFER_RELEASE_J` | RGB 归一化上限、放开功率限制的阈值 |
-| 功率裕量 | `CHASSIS_POWER_MARGIN_W` | 应用层限功率公式中的裕量 |
-
-## 依赖
-
-```
-chassis
-  ├─ chassis_motion ──→ chassis_velocity（派目标速度）
-  └─ chassis_velocity ──→ dji_motor（注册电机/发电流/读实测）、pid（速度环/反算）
-
-cmd（应用层）
-  ↑
-  └── referee（缓冲能量 + 功率上限 → 二值化 → Chassis_SetPowerLimit）
-```
-
-## 注意
-
-- 底盘实时链使用 `ROBOT_MOTOR_TIM_HANDLE`（`chassis_motion` 回调解算后调用 `ChassisVelocity` 跑环）；`Robot_Init` 先选择电机时基，再初始化云台和底盘。因此不能假定底盘回调先于 DJI 回调，注册顺序未在本次配置迁移中改变。
-- 唯一留在 RTOS 的是 `chassis.c` 里 follow 模式设 `w_rot` + 四轮使能的 `Chassis_Task`（不在实时链上）。
-- `power_limit` 由应用层 `cmd.cpp` 按上述缓冲能量决策写入（`Chassis_SetPowerLimit`）。
-
-## 规划中（暂不实现）
-
-### 速度环力矩/电流前馈
-
-- 模型 `I_ff = sign(ω*)·(a·|ω*| + b)`：`a` 粘滞摩擦、`b` 库仑摩擦（折算电流）。
-- 标定：扫一组恒定速度，线性回归 `|I_raw| = a·|ω| + b` 得 a、b。
-- 注入在功率预测之前（前馈也受功率上限约束）：`I_raw = PI + I_ff`。
-- 不用平滑 sign 跳变：那是扭矩阶跃，车身惯量吸收，C620 电流环忠实跟踪。
-- 云台速度环同样适用（规划，未实现）。
+失能时四轮驱动失能，速度 PID 复位，原始电流清零；功率监测继续更新。实际离线发送边界见 [DJI](../../modules/motor/dji_motor/README.md)。

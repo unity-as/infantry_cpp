@@ -1,115 +1,21 @@
-# DWT 时钟模块
+# DWT 计时
 
-## 概述
+接口见 [bsp_dwt.h](bsp_dwt.h)，实现见 [bsp_dwt.cpp](bsp_dwt.cpp)。DWT 使用内核 CYCCNT 计数；初始化频率取自 HAL_RCC_GetSysClockFreq，板级时钟见 [硬件事实](../../../.claude/conventions/hardware.md#时钟树与定时器)。
 
-DWT（Data Watchpoint and Trace）是 ARM Cortex-M 内核的硬件外设，提供高精度的 cycle counter。本模块封装了 DWT 的常用功能，提供微秒级延时和时间测量。
+## 使用
 
-## 为什么用 DWT 而不是 HAL_Delay
+`DWT_Init()` 必须先于所有使用该计时器的模块。整车顺序只在 [系统架构](../../../.claude/docs/impl/architecture.md#初始化流程)维护。
 
-| 特性 | HAL_Delay | DWT_Delay |
-|------|-----------|-----------|
-| 精度 | 1ms（基于 SysTick） | ~6ns（基于 CPU 时钟） |
-| 阻塞方式 | 中断驱动，可被抢占 | 忙等待，不可抢占 |
-| 适用场景 | 粗粒度延时 | 高精度延时、时间测量 |
-| 对中断的影响 | 不影响 | 延时期间中断被延迟 |
+- `DWT_GetDeltaT` / `DWT_GetDeltaT64` 接收调用方保存的上次 32 位计数，更新它并返回秒；二者区别是返回浮点精度，后者不是无限跨度的 64 位计数差。
+- `DWT_GetTimeline_s/ms/us` 给出软件扩展时间戳；`TIME_ELAPSE` 用秒时间戳测量一段代码的经过时间。
+- `DWT_Delay_Tick/us/ms` 忙等待。代码没有屏蔽中断或暂停 RTOS 调度，所以可被抢占；原文“不可抢占、延迟中断”的说法不成立。
 
-**结论**：需要精确计时或高精度延时时用 DWT，普通延时用 HAL_Delay。
+周期计数分辨率由 CPU 时钟决定，不等于函数调用、延时或测量的端到端精度。采样结果可包含抢占时间。
 
-## 工作机制
+## 回绕与并发边界
 
-### 硬件原理
+CYCCNT 为 32 位。时间差通过无符号减法处理一次回绕，调用间隔需短于计数器完整周期；软件时间线只在观察到当前计数小于上次时累计溢出，不能补回多次遗漏的回绕。
 
-```
-CPU 时钟 (168MHz)
-    ↓
-DWT->CYCCNT 寄存器（32位，每周期+1）
-    ↓
-溢出处理（32位回绕，软件扩展到64位）
-    ↓
-换算系数：1秒 = 168,000,000 cycles
-         1毫秒 = 168,000 cycles
-         1微秒 = 168 cycles
-```
+延时函数使用 64 位起点与 32 位当前计数相减，跨 CYCCNT 回绕时差值可能下溢，不能宣称它已正确覆盖该边界。软件时间线的 volatile 字节标志也不是原子锁，不能据此承诺任务/中断并发安全。
 
-### 溢出处理
-
-CYCCNT 是 32 位寄存器，最大计数约 25.5 秒（@168MHz）。本模块通过软件扩展到 64 位：
-
-1. 每次读取时检查是否发生回绕（当前值 < 上次值）
-2. 回绕时溢出计数器 +1
-3. 64 位时间 = (溢出次数 << 32) | CYCCNT
-
-## 初始化
-
-```c
-#include "bsp_dwt.h"
-
-void Robot_Init(void)
-{
-    DWT_Init();  // 必须最先调用！
-    // ... 其他初始化 ...
-}
-```
-
-**必须在所有使用 DWT 的模块之前调用**，包括：
-- AHRS（使用 DWT_GetDeltaT 和 DWT_Delay_ms）
-- 任何需要高精度计时的模块
-
-## API 使用
-
-### 延时函数
-
-```c
-DWT_Delay_ms(1.0f);   // 延时 1 毫秒
-DWT_Delay_us(100.0f);  // 延时 100 微秒
-```
-
-### 时间戳获取
-
-```c
-// 获取当前时间（不同精度）
-float time_s = DWT_GetTimeline_s();    // 秒
-float time_ms = DWT_GetTimeline_ms();  // 毫秒
-uint64_t time_us = DWT_GetTimeline_us();  // 微秒
-```
-
-### 时间差测量
-
-```c
-uint32_t last_cnt = 0;
-
-// 循环中
-float dt = DWT_GetDeltaT(&last_cnt);  // 距离上次调用的时间差（秒）
-```
-
-### 代码执行时间测量
-
-```c
-float elapsed;
-TIME_ELAPSE(elapsed, {
-    // 要测量的代码
-    for (int i = 0; i < 1000; i++) {
-        // ...
-    }
-});
-printf("执行时间: %.6f 秒\n", elapsed);
-```
-
-## 依赖关系
-
-```
-DWT (bsp_dwt)
-  ↑
-  ├── AHRS (姿态解算)
-  ├── 任何需要高精度计时的模块
-  └── ...
-```
-
-**关键规则**：DWT 是基础模块，必须在所有依赖它的模块之前初始化。
-
-## 注意事项
-
-1. **初始化顺序**：`DWT_Init()` 必须在 `Robot_Init()` 中最先调用
-2. **中断影响**：`DWT_Delay` 是忙等待，延时期间中断被延迟
-3. **线程安全**：`DWT_CNT_Update()` 使用位锁保护，可在中断中调用
-4. **精度限制**：受限于 CPU 时钟频率，最高精度约 6ns（@168MHz）
+这些是本次文档对照源码时识别的边界，未修改实现、未执行硬件验证；后续跟进见 [待办](../../../.claude/records/todo/current.md#规范与行为待决定)。

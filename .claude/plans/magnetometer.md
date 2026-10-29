@@ -1,33 +1,9 @@
-# 磁力计融合方案（方案 B：扩展观测向量）
+# 磁力计融合意向
 
-## 原理
+未实施，状态见 [当前待办](../records/todo/current.md#功能待办)。当前 [AHRS](../../project/modules/ahrs/README.md) 固定六轴，在头文件中将 AHRS_USE_MAGNETOMETER 设为 0，没有可直接启用的磁力计融合分支。
 
-通过条件编译 `AHRS_USE_MAGNETOMETER` 控制两种模式：
+旧方案尝试增加磁场观测与 yaw 零偏状态；当前 KF/EKF 已由调用方提供模型值和 Jacobian，原 `AHRS_Update_6D_Callback` / `KF_Update_EKF` 等 C 接口不再适用。
 
-| 模式 | 状态向量 | 观测向量 | yaw 修正 |
-|------|---------|---------|---------|
-| 无磁力计 | [q0,q1,q2,q3,bx,by] (n=6) | [ax,ay,az] (m=3) | 仅陀螺积分，会漂移 |
-| 有磁力计 | [q0,q1,q2,q3,bx,by,bz] (n=7) | [ax,ay,az,mx,my,mz] (m=6) | 磁力计修正，不漂移 |
+继续实施前需确认磁力计安装、轴向、硬软铁标定及电机磁干扰，定义状态/观测维度、模型与 Jacobian、量测拒绝和失效回退，并检查计算量。磁力计可能提供航向约束，但不能承诺无漂移或在磁干扰下仍准确。
 
-## 需要改动的文件
-
-| 文件 | 改动 |
-|------|------|
-| ahrs.h | `AHRS_OBS_DIM` 条件编译（3→6） |
-| ahrs.c | 6 维观测向量构建 |
-| ahrs.c | 6×6 H 矩阵回调 |
-| ahrs.c | 6×6 R 矩阵 |
-| ahrs.c | 磁力计数据读取和归一化 |
-
-## 不需要改动的文件
-
-- kalman_filter.c（已支持任意 m）
-- ist8310.c（驱动已完成）
-
-## 实现步骤
-
-1. 修改 `AHRS_OBS_DIM` 条件编译
-2. 创建 6 维 H 矩阵回调 `AHRS_Update_6D_Callback`
-3. 在 `AHRS_Update()` 中添加磁力计数据读取
-4. 构建 6 维观测向量和 6×6 R 矩阵
-5. 调用 `KF_Update_EKF` 进行 6 维更新
+板上有驱动或器件不代表已进入估计链；现有六轴的实机边界见 [验证记录](../records/validation.md#ahrspid-与-kf-移植2026-10-28)。

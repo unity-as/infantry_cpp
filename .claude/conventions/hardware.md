@@ -1,8 +1,6 @@
 # hardware.md - 硬件事实
 
-> 维护位置：`conventions/hardware.md`
-> 这是本项目硬件事实的**唯一真相源**。换电机 / 改接线 / 改外设分配时，更新本文件。
-> 外设分配与电机分配均以代码为准（2026-08-25 由代码核实：`cmd.c` 外设注册、`usart.c` 波特率、`infantry.ioc` 引脚）。
+> 本文维护硬件组成、接线与时基的解释。可调外设绑定和电机 ID 以 [config.h](../../project/application/config.h) 为配置来源，初始化见 [cmd.cpp](../../project/application/cmd/cmd.cpp)，生成外设配置见 [infantry_cpp.ioc](../../infantry_cpp.ioc)。换接线或配置归属时同步核对。
 
 ## 机械结构（机器人组成）
 
@@ -20,7 +18,7 @@
 - **主控板**：RoboMaster 官方 C 型开发板（STM32F407）
 - **IMU**：BMI088（SPI1）
 - **磁力计**：IST8310（I2C3，可选）
-- **遥控器**：DBUS（USART3，921600）
+- **遥控器**：VT13 图传遥控器；接线与串口格式见下方外设表
 - **小电脑（minipc，视觉）**：USART6（115200）
 - **裁判系统**：USART1（115200）
 
@@ -50,7 +48,7 @@
 | USART3 | PC10(TX)/PC11(RX) | VT13 图传遥控器（921600、8N1） | vt13 |
 | USART6 | PG14(TX)/PG9(RX) | minipc 视觉（115200） | minipc_comm |
 | SPI1 | PA7(MOSI)/PB3(SCK)/PB4(MISO) | BMI088 IMU | ahrs |
-| I2C3 | PA8(SCL)/PC9(SDA) | IST8310 磁力计（可选） | ahrs |
+| I2C3 | PA8(SCL)/PC9(SDA) | IST8310 磁力计（预留） | 驱动保留，未接入 AHRS |
 | TIM5 | — | 电机控制、RGB PWM 与 Daemon 时基；周期见下方定时器表 | bsp_tim / rgb_led |
 | ADC3 | PF10(IN8) | 母线电压（功率监测） | power |
 
@@ -85,6 +83,6 @@ TIM14 保留 HAL 自动计算预分频的逻辑，不改成固定数字。
 从旧 `tim.c` 的 65535 对齐为 `.ioc` 中的 2000-1，因此其当前周期为 2 ms。
 TIM1、TIM10 的表达式改写不改变数值和周期。TIM5 同时驱动 RGB PWM，载波随修正由 500 Hz 变为 1 kHz。
 
-**状态：已烧录校验，板端配置检查完成，用户实车测试反馈通过。** 时基修正的 PID 配套口径见
+**该时基修正的历史结果：已烧录校验，板端配置检查完成，用户实车测试反馈通过。** 时基修正的 PID 配套口径见
 [PID 模块](../../project/modules/alg/pid/README.md#tim5-周期修正)，验证结果和未测项目统一见
-[当前迭代](../records/todo/current.md#tim5-时基与-pid-验证结果)。
+[历史验证记录](../records/validation.md#tim5-时基与-pid-验证结果)。
