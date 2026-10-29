@@ -27,6 +27,7 @@
 
 | 文件 | 内容 |
 |------|------|
+| [cpp_frame](cpp_frame) | 头文件防重复包含与实例类成员排列规则 |
 | [cpp/cpp_conventions.md](cpp/cpp_conventions.md) | 编码规范（真相源之一） |
 | [cpp/cpp_refactor.md](cpp/cpp_refactor.md) | 迁移顺序 |
 | [../plans/cpp_plans/](../plans/cpp_plans/) | AI 逐步作业单 |

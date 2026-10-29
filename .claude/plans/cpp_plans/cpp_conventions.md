@@ -16,7 +16,7 @@
 | 规则 | 内容 | 示例 |
 |------|------|------|
 | 文件命名 | 全小写，单词下划线连接 | `dji_motor.h` / `dji_motor.cpp` |
-| 头文件守卫 | `#pragma once` | — |
+| 头文件防重复包含 | 见 [frame](../../docs/cpp_frame#头文件防重复包含) | — |
 | `.hpp` 分工 | 仅 header-only（纯模板、无实现文件）用 `.hpp`；普通类 `.h` + `.cpp` | `matrix.hpp`（模板）、`dji_motor.h/.cpp` |
 | `extern "C"` | **仅 C/C++ 边界**：① C++ `#include` 第三方 C 头（HAL/CMSIS/FreeRTOS）；② 被 C 文件（`main.c` / `*_it.c`）调用的 C++ 函数，在其 `.h` 里用 `extern "C"` 包裹。内部 C++ 模块间**不加** | — |
 
@@ -62,6 +62,7 @@ motor.setEnable(true);
 
 ### 3.2 配套约定
 
+- **类成员排列**：见 [frame](../../docs/cpp_frame#实例类成员排列)。
 - **Config**：嵌套在类内部，命名固定为 `Config`，每个实例类都有。
 - **Feature**：成员枚举命名固定为 `Feature`，用 `enum class`（底层 `uint8_t`），位运算用宏 `ENABLE_BITWISE_OPS(Feature)` 生成（见 §3.3）。
 - **回调机制（统一函数指针，禁用 `std::function`）**：

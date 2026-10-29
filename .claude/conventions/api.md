@@ -45,18 +45,7 @@ motor.setVelocity(1000.0f);
 
 ### 类成员声明顺序
 
-**实例类**（BSP / modules 等有状态的 `class`，如 `CAN`、`DJIMotor`、`Daemon`）头文件类体内统一：
-
-1. 嵌套类型（`using` / `enum` / `struct Config` / `FeedbackRaw` 等）
-2. **实例变量**（先 `public` 后 `private`）
-3. **static 变量**（先 `public` 后 `private`）
-4. **static 函数**（先 `public` 后 `private`）
-5. **实例函数**（先 `public` 后 `private`）
-
-可重复写 `public:` / `private:` 分段。公开状态建议分区注释（如用户坐标 / 指令 / 运行状态）；协议 raw 用嵌套 `FeedbackRaw` 等，保持 private。
-
-**例外：`Matrixf`（`modules/utils/matrix.hpp`）**  
-以运算/接口函数为主（构造、运算符、工厂方法），**不按**上表「变量优先」重排；保持现有以函数为主的布局。
+实例类成员排列与纯数学类型例外统一见 [frame](../docs/cpp_frame#实例类成员排列)。
 
 ### C → C++ 映射（查阅旧文档时）
 
