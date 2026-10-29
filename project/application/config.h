@@ -20,7 +20,7 @@ extern "C" {
 
 #define GIMBAL_INIT  !(DEBUG_INIT_MODE && !GIMBAL_INIT_DEBUG)// 云台初始化
 #define CHASSIS_INIT !(DEBUG_INIT_MODE && !CHASSIS_INIT_DEBUG) // 底盘初始化
-#define SHOOT_INIT   !(DEBUG_INIT_MODE && !SHOOT_INIT_DEBUG)// 射击初始化
+#define SHOOT_INIT   0 // 发射机构初始化：0=关闭，1=开启（摩擦轮和拨盘一起控制）
 // ======= 机器人参数 =======
 
 // 云台电机初始位置 — 编码器值
