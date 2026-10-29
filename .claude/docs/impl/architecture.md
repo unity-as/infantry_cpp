@@ -9,7 +9,7 @@
 application/
 ├── robot.c           # Robot_Init() + Robot_Task()
 ├── robot.h
-├── config.h          # 全局配置
+├── config.h          # 整车可调参数唯一入口
 ├── chassis/          # Chassis_Init() + Chassis_Task()
 ├── gimbal/           # Gimbal_Init() + Gimbal_Task()
 └── shoot/            # Shoot_Init() + Shoot_Task()
@@ -21,7 +21,7 @@ application/
 void Robot_Init(void)
 {
     DWT_Init();                     // 高精度延时
-    DJIMotor::timbaseSelect(&htim5); // 电机控制时基先于各子系统初始化
+    DJIMotor::timbaseSelect(ROBOT_MOTOR_TIM_HANDLE); // 先于各子系统初始化
     Cmd_Init();                     // AHRS/遥控/minipc/裁判/Power/RGB 集中初始化
 #if GIMBAL_INIT
     Gimbal_Init();                  // 内部创建 Gimbal_Task
@@ -35,9 +35,21 @@ void Robot_Init(void)
 }
 ```
 
-开关维护在 [config.h](../../../project/application/config.h)。关闭发射机构采用 `SHOOT_INIT=0`：
+`GIMBAL_INIT`、`CHASSIS_INIT`、`SHOOT_INIT` 在 [config.h](../../../project/application/config.h) 中独立取 0/1，
+不再通过调试开关联动选择。关闭发射机构采用 `SHOOT_INIT=0`：
 跳过整个 `Shoot_Init`，两只摩擦轮和拨盘均不注册，`Shoot_Task` 也不创建。
 摩擦轮控制逻辑正常跟随 `shoot_cmd.enable`，不在任务中强制失能；需要启用发射机构时，将 `SHOOT_INIT` 设为 1。
+
+## 配置归属
+
+整车可调参数只维护在 [config.h](../../../project/application/config.h)：初始化开关、CAN/UART/ADC/控制时基绑定、任务栈、
+AHRS 量程与安装角、遥控/键鼠手感、底盘几何/跟随/功率阈值、云台零位/限位/前馈、发射接线/减速比/动作参数。
+全部应用 PID 以命名的 `inline constexpr PID::Config` 保存完整配置，包含功能位、增益、限幅、滤波和秒制周期。
+
+`cmd`、`chassis`、`gimbal`、`shoot` 读取这些参数，组装模块 `Config` 并调用 `init`。
+模块与 BSP 保留各自接口、协议/型号固定常量及默认行为，不依赖应用 `config.h`；
+遥控协议量到物理量、拨盘每发角度/速度/时间等派生公式仍在使用处维护。
+调整控制时基或位置环分频时，须同时核对相关 PID 的 `period`，不会自动改写 CubeMX 定时器配置。
 
 ## Robot_Task — 控制信息中枢
 

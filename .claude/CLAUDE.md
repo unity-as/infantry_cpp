@@ -10,7 +10,7 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 |------|------|
 | `conventions/` | 本项目规则 + 事实：`api.md`、`file.md`、`hardware.md`、`docs.md`（文档放哪 / 何时改） |
 | `docs/` | `impl/` 实现路径；`cpp/` 规范（人机共用）；`guide/` 启动等；`deprecated/` 废案；索引 `plan.md` |
-| `records/` | `todo/current.md` + `backlog.md`；`history/history.md` |
+| `records/` | `todo/current.md` + `backlog.md` |
 | `reference/` | 外部资料（官方手册 / 协议 / 术语 / 规则）：`hardware/` 手册、`rules/` 规则 |
 | `plans/` | 未落地方案 + AI 计划（`cpp_plans/`、`msg_bus.md` 等） |
 | `tools/` | 技能自带的工具 / 脚本 |
@@ -48,7 +48,7 @@ RoboMaster 步兵机器人电控项目，主控 RoboMaster C 型开发板（STM3
 | 编译烧录怎么点 | `.claude/docs/guide/startup/` |
 | 了解项目进度 / 待办 | `.claude/records/todo/current.md` |
 | 文件发生变动（新增/删除/移动） | **立即更新 `.claude/conventions/file.md` 文件结构** |
-| 完成一个阶段 | **更新 `records/todo/current.md`（及 backlog）+ 按格式追加 `records/history/history.md`** |
+| 完成一个阶段 | **更新 `records/todo/current.md`（及 backlog）；变更经过由 Git 提交保存** |
 
 ## 技能
 

@@ -2,7 +2,7 @@
 
 > 五件套其它篇见同目录。本文是调参结论，不是完整设计。
 > 以下保留旧 C 版调参过程，参数与毫秒接口说明均为历史记录。当前初始化参数以
-> [gimbal.cpp](../../../../project/application/gimbal/gimbal.cpp) 为准，周期与增益换算见
+> [config.h](../../../../project/application/config.h) 为准，周期与增益换算见
 > [PID 模块](../../../../project/modules/alg/pid/README.md)，板级时基见 [硬件事实](../../../conventions/hardware.md#时钟树与定时器)。
 
 

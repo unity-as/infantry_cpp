@@ -1,5 +1,7 @@
 # 底盘功率控制架构重构
 
+> 本文保留旧 C 版设计讨论与备选方案，不作为当前参数或初始化顺序的依据。
+> 当前实现与配置入口见 [底盘说明](../../../../project/application/chassis/README.md)。
 > 最后更新：2026-08-17
 > 覆盖范围：底盘控制架构重构（运动学 / 电机反馈链路 / 功率控制 三模块拆分）+ 二值动态限功率
 > 关联：[design-rationale.md](design-rationale.md)（运动学）、[data-flow.md](data-flow.md) / [pipeline.md](pipeline.md)（现码路径）

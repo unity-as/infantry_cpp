@@ -6,7 +6,7 @@
 - **cpp/** C++ 规范与重构顺序（人机共用）。
 - **guide/** 启动等给人点的说明。
 - **deprecated/** 废案。未落地仍在 **plans/**。
-- 待办 **records/todo/current.md** + **backlog.md**；阶段记录 **records/history/**。
+- 待办 **records/todo/current.md** + **backlog.md**；变更经过查看 Git 提交。
 
 ## 实现路径
 
@@ -48,4 +48,3 @@
 | [../records/todo/current.md](../records/todo/current.md) | 本迭代 |
 | [../records/todo/backlog.md](../records/todo/backlog.md) | 积压 |
 | [../records/todo/status.md](../records/todo/status.md) | 模块实现对照表 |
-| [../records/history/history.md](../records/history/history.md) | changelog |

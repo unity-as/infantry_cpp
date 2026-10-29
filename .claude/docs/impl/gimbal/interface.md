@@ -1,8 +1,8 @@
 # 云台接口
 
 应用接口在 [gimbal.h](../../../../project/application/gimbal/gimbal.h)：
-`Gimbal_Cmd`、`Gimbal_Init`、`Gimbal_Set_*`、`Gimbal_AutoAim`；pitch 零位和两组限位统一维护在
-[config.h](../../../../project/application/config.h)。
+`Gimbal_Cmd`、`Gimbal_Init`、`Gimbal_Set_*`、`Gimbal_AutoAim`。云台电机接线、零位、限位、前馈、
+位置环/自瞄分频及六组 PID 配置统一维护在 [config.h](../../../../project/application/config.h)，由应用层注入 core。
 
 `Gimbal::Config::pitch_min/max` 为 AHRS pitch 角区间，新增的 `pitch_motor_min/max` 为电机相对编码器零位的角度区间，单位均为度。
 

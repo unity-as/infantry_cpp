@@ -42,13 +42,13 @@ cmd(v, θ, w) ── chassis.c（指令对接）
 
 积分单位为误差·s，`coef` 把每拍被限掉的电流差转换为积分回灌量，单位为误差·s/A。
 PID 毫秒到秒的换算规则见 [PID 模块](../../modules/alg/pid/README.md#参数与时间口径)。
-本次保持原回灌作用，将旧系数除以 1000；当前参数以 [chassis.cpp](chassis.cpp) 的 `back_calc_coef` 为准。
+本次保持原回灌作用，将旧系数除以 1000；当前参数以 [config.h](../config.h) 的 `CHASSIS_BACK_CALC_COEF` 为准。
 该实现每拍直接扣积分，不是自动按采样周期离散化的连续跟踪器，不能将系数直接当作 `ki/kp`。
 
 ### 功率限幅（[2]）
 - 纯限幅：`P_pred = Σ Kt·I_raw·ω`，`scale = min(1, limit/P_pred)`，`I = scale·I_raw`。负功率（倒灌）算 0。
 - `CHASSIS_POWER_COEF = 0.005236 = Kt(0.3 N·m/A, 输出轴) × π/180`；`CHASSIS_GET_POWER = fmaxf(0, COEF·I·ω)`。
-- `power_limit <= 0` 表示不限流。二值化（`buffer_energy > 阈值 → 放开；≤ → 限死`）在应用层 `cmd.c` 决策，测试时固定上限（`CHASSIS_POWER_LIMIT`）。
+- `power_limit <= 0` 表示不限流。应用层 `cmd.cpp` 在缓冲能量大于配置阈值时传入 0；否则传入“裁判功率上限 + 配置裕量 −（缓冲能量上限 − 当前能量）”。
 
 ### 速度反馈
 
@@ -56,12 +56,16 @@ PID 毫秒到秒的换算规则见 [PID 模块](../../modules/alg/pid/README.md#
 
 ## 待调参数
 
-| 参数 | 位置 | 默认 | 说明 |
-|------|------|------|------|
-| 速度环 PID | [chassis.cpp](chassis.cpp) `pid_velocity_config` | 以代码为准 | 位置式，周期单位为秒 |
-| `back_calc_coef` | [chassis.cpp](chassis.cpp) | 以代码为准 | 每拍电流差到积分回灌量的换算系数 |
-| `CHASSIS_POWER_LIMIT` | `cmd.c` | 20.0 (W) | 底盘功率上限（测试） |
-| `CHASSIS_POWER_DETECT` | `cmd.c` | 30.0 (W) | LED 红检测值（测试） |
+所有可调值以 [config.h](../config.h) 为准，应用层只读取并传参。
+
+| 参数 | 配置名 | 说明 |
+|------|--------|------|
+| 速度环 PID | `CHASSIS_WHEEL_VELOCITY_PID` | 位置式，完整功能位/增益/限幅/滤波/秒制周期 |
+| 积分回灌 | `CHASSIS_BACK_CALC_COEF` | 每拍电流差到积分回灌量的换算系数 |
+| 几何和接线 | `CHASSIS_WHEEL_RADIUS_M`、`CHASSIS_LENGTH_M`、`CHASSIS_WIDTH_M`、`CHASSIS_MOTOR_ID_*` 等 | 麦轮解算与电机初始化 |
+| 跟随 | `CHASSIS_FOLLOW_PERIOD_DEG`、`CHASSIS_FOLLOW_GAIN` | 误差折叠周期与 P 增益 |
+| 缓冲能量 | `CHASSIS_BUFFER_MAX_J`、`CHASSIS_BUFFER_RELEASE_J` | RGB 归一化上限、放开功率限制的阈值 |
+| 功率裕量 | `CHASSIS_POWER_MARGIN_W` | 应用层限功率公式中的裕量 |
 
 ## 依赖
 
@@ -77,9 +81,9 @@ cmd（应用层）
 
 ## 注意
 
-- 整条底盘链跑在 `htim5` 定时器中断里（`chassis_motion` 的 TIM 回调：`ChassisMotion_Update` 解算 → `ChassisVelocity_Tick` 跑环），注册**先于** `DJIMotor_TimbaseSelect(&htim5)`，同一拍 ISR 里底盘先算完电流、dji_motor 紧接着发送——延迟最小、确定性最高。
+- 底盘实时链使用 `ROBOT_MOTOR_TIM_HANDLE`（`chassis_motion` 回调解算后调用 `ChassisVelocity` 跑环）；`Robot_Init` 先选择电机时基，再初始化云台和底盘。因此不能假定底盘回调先于 DJI 回调，注册顺序未在本次配置迁移中改变。
 - 唯一留在 RTOS 的是 `chassis.c` 里 follow 模式设 `w_rot` + 四轮使能的 `Chassis_Task`（不在实时链上）。
-- `power_limit` 由应用层 `cmd.c` 写入（`Chassis_SetPowerLimit`），测试时固定。
+- `power_limit` 由应用层 `cmd.cpp` 按上述缓冲能量决策写入（`Chassis_SetPowerLimit`）。
 
 ## 规划中（暂不实现）
 

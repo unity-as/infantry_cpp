@@ -20,4 +20,5 @@ void Chassis_SetPowerLimit(float limit);
 float Chassis_GetPower(void);
 ```
 
-内部 class：`ChassisMotion`、`ChassisVelocity`（仅 `chassis.cpp` / core），各有嵌套 `Config`，在 `Chassis_Init` 里 `init`。
+内部 class：`ChassisMotion`、`ChassisVelocity`（仅 `chassis.cpp` / core），各有嵌套 `Config`。
+`Chassis_Init` 从 [config.h](../../../../project/application/config.h) 读取整车参数后组装配置并调用 `init`。

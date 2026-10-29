@@ -18,7 +18,7 @@ infantry_cpp/
 │   │   ├── hardware.md      # 硬件事实（电机表 + 外设分配）
 │   │   └── docs.md          # 文档放哪 / 何时改 / impl 五件套
 │   ├── docs/                # impl/ 实现；cpp/ 规范；guide/ 启动；deprecated/；plan.md
-│   ├── records/             # todo/current+backlog；history/
+│   ├── records/             # todo/current+backlog
 │   ├── reference/           # 外部资料（手册 / 协议 / 规则）
 │   ├── plans/               # 未落地方案 + cpp_plans/
 │   ├── tools/               # 技能自带工具 / 脚本
@@ -94,7 +94,7 @@ project/modules/
 ```
 project/application/
 ├── robot.cpp / robot.h       # 入口：Robot_Init() + Robot_Task()
-├── config.h                  # 全局配置
+├── config.h                  # 整车可调参数（开关、接线、操作、PID 等）
 ├── cmd/                      # 指令中枢（遥控/键鼠/自瞄 → 各子系统）
 ├── chassis/                  # 底盘（含 chassis_core：motion / velocity）
 ├── gimbal/                   # 云台（含 gimbal_core）

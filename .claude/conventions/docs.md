@@ -14,7 +14,6 @@
 | `docs/plan.md` | 只做索引 | 规则正文 |
 | `plans/` | 未进代码的方案 + AI 作业单（`cpp_plans/`） | 写成 impl 现状 |
 | `records/todo/` | `current.md` 本迭代；`backlog.md` 积压 | 已完成的 changelog |
-| `records/history/` | 阶段 changelog | 待办 |
 | `reference/` | 外部手册 / 协议 / 规则 | 本项目设计 |
 
 `docs/cpp/` 与 `plans/cpp_plans/`：前者是规则（写代码对照），后者是逐步清单，两边规则应一致。
@@ -41,7 +40,7 @@
 | 新建 / 删除 / 移动项目文件 | `conventions/file.md` |
 | 方案落地 | 写入 `impl/`；从 `plans/` 删或标明已落地 |
 | 方案废弃 | 进 `docs/deprecated/`，不要留在 `impl/` 当现状 |
-| 完成一个阶段 | `records/todo/current.md`（及 backlog）+ 按格式追加 `records/history/history.md` |
+| 完成一个阶段 | `records/todo/current.md`（及 backlog）；变更经过由 Git 提交保存，不另建阶段日志 |
 
 ## 铁律
 
