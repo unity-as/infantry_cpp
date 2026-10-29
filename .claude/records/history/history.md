@@ -215,3 +215,10 @@
 - **验证方法与预期**：编译实际 `gimbal.cpp`、`gimbal_core.cpp`、PID、DJI 解码、Daemon 与 TIM 实现，用既有 CAN/TIM 桩及模拟 AHRS 输出代替硬件输入；预期不越界时保留原误差、目标越界时误差止于边界、实际已越界时指向区间内，并保持自瞄误差符号与位置环分频。通过 CAN 接收桩核对初始化 ECD 及相邻编码器值对应的零位偏差，并用不同的两组上下限检查其独立作用。
 - **验证结果**：主机 91 项检查通过；`cmake --build build` 通过，RAM 80824 B、FLASH 119096 B；`git diff --check` 通过。此次本地主机检查脚本和输出位于忽略的 `build/pitch-limit-check/`、`build/pitch-limit-check.log`，构建日志为 `build/pitch-limit-build.log`。
 - **未验证与待办**：未烧录，真实水平零位、边界与方向、底盘倾斜时的闭环行为，以及真实机械端点余量尚未验证；电机角限位当前按用户要求沿用 AHRS 限位值。未合并或推送；待办见 [当前迭代](../todo/current.md#pitch-双重限位待实机测试)。
+
+### pitch 双重限位烧录
+
+- **固件身份**：分支 `codex/gimbal-pitch-mechanical-limits`，代码提交 `b66bcf3`，烧录时 HEAD 为 `58e6703`。BIN 大小 119096 B，SHA-256 为 `dd20c517c85ec4db944e7b6808c1b1c06deb901a83d8c9b8758b0b430259bd1c`。
+- **方法与预期**：按用户要求执行 `cmake --build build`，再依 `.vscode/settings.json` 使用 CMSIS-DAP、`target/stm32f4x.cfg`，执行 OpenOCD `program build/infantry.elf verify reset exit`；预期写入成功、校验一致并复位。
+- **结果**：构建确认无待更新项；识别 STM32F407，device id `0x10076413`、Flash 1024 KiB。OpenOCD 输出 `Programming Finished`、`Verified OK`、`Resetting Target`，退出码为 0。日志为忽略的 `build/pitch-limit-flash-build.log`、`build/pitch-limit-flash.log`。
+- **验证边界**：本轮完成烧录与写入校验，未进行云台限位、回拉或底盘倾斜实测；仍按 [当前待办](../todo/current.md#pitch-双重限位待实机测试) 跟踪。未更改功能代码、合并或推送。
