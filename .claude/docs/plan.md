@@ -14,7 +14,7 @@
 |------|------|
 | [impl/architecture.md](impl/architecture.md) | 整车 Init / Task / 电机表（部分仍偏 C 旧稿） |
 | [impl/chassis/](impl/chassis/) | 底盘五件套 + [power.md](impl/chassis/power.md) |
-| [impl/gimbal/](impl/gimbal/) | 云台；仅 overview + 调参较完整 |
+| [impl/gimbal/](impl/gimbal/) | 云台接口、pitch 双重限位与历史调参 |
 | [impl/aim.md](impl/aim.md) | 自瞄（未拆五件套） |
 | [impl/feedforward.md](impl/feedforward.md) | 前馈 |
 | [impl/ahrs.md](impl/ahrs.md) | AHRS |

@@ -63,8 +63,8 @@ void Error_Handler(void);
 #define IMU_TEMP_GPIO_Port GPIOF
 #define LED_R_Pin GPIO_PIN_12
 #define LED_R_GPIO_Port GPIOH
-#define INT_MAG_Pin GPIO_PIN_3
-#define INT_MAG_GPIO_Port GPIOG
+#define MAG_INT_Pin GPIO_PIN_3
+#define MAG_INT_GPIO_Port GPIOG
 #define LED_G_Pin GPIO_PIN_11
 #define LED_G_GPIO_Port GPIOH
 #define LED_B_Pin GPIO_PIN_10
@@ -75,12 +75,12 @@ void Error_Handler(void);
 #define KEY_GPIO_Port GPIOA
 #define ACC_CS_Pin GPIO_PIN_4
 #define ACC_CS_GPIO_Port GPIOA
-#define INT1_Accel_Pin GPIO_PIN_4
-#define INT1_Accel_GPIO_Port GPIOC
+#define ACC_INT_Pin GPIO_PIN_4
+#define ACC_INT_GPIO_Port GPIOC
 #define PWM3_Pin GPIO_PIN_13
 #define PWM3_GPIO_Port GPIOE
-#define INT1_Gyro_Pin GPIO_PIN_5
-#define INT1_Gyro_GPIO_Port GPIOC
+#define GYRO_INT_Pin GPIO_PIN_5
+#define GYRO_INT_GPIO_Port GPIOC
 #define PWM1_Pin GPIO_PIN_9
 #define PWM1_GPIO_Port GPIOE
 #define PWM2_Pin GPIO_PIN_11

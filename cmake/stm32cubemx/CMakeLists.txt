@@ -100,8 +100,10 @@ set(MX_LINK_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Middlewares/ST/CMSIS/DSP/Lib/GCC
 )
 # Project static libraries
-set(MX_LINK_LIBS  
+set(MX_LINK_LIBS 
+ "-Wl,--start-group" 
 	:libarm_cortexM4lf_math.a
+ "-Wl,--end-group"
     STM32_Drivers
     ${TOOLCHAIN_LINK_LIBRARIES}
     FreeRTOS	

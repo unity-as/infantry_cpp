@@ -26,7 +26,10 @@ void Gimbal::axisUpdate(Axis& axis)
     if (axis.mode == Mode::Position) {
         if (++(axis.div_cnt) >= axis.pos_freq_div) {
             axis.div_cnt = 0;
-            axis.pid_pos.setSetpoint(axis.target);
+            float target = axis.target;
+            if (&axis == &pitch_)
+                target = axis.actual_angle + limitPitchError(target - axis.actual_angle);
+            axis.pid_pos.setSetpoint(target);
             axis.pid_pos.update(axis.actual_angle);
             axis.vel_target = axis.pid_pos.output_;
         }
@@ -82,6 +85,8 @@ void Gimbal::init(const Config& config)
     yaw_max_   = config.yaw_max;
     pitch_min_ = config.pitch_min;
     pitch_max_ = config.pitch_max;
+    pitch_motor_min_ = config.pitch_motor_min;
+    pitch_motor_max_ = config.pitch_motor_max;
 
     // --- 分频 ---
     yaw_.pos_freq_div   = config.pos_freq_div_yaw;
@@ -141,6 +146,17 @@ static float clamp_angle(float angle, float min, float max)
     if (angle < min) return min;
     if (angle > max) return max;
     return angle;
+}
+
+float Gimbal::limitPitchError(float error) const
+{
+    const float ahrs_angle = pitch_.actual_angle;
+    const float motor_angle = pitch_.motor.angle_;
+    const float ahrs_target = clamp_angle(ahrs_angle + error, pitch_min_, pitch_max_);
+    // AHRS pitch 与电机用户角同向：角度误差直接换算成电机目标位置。
+    const float motor_target = clamp_angle(motor_angle + (ahrs_target - ahrs_angle),
+                                          pitch_motor_min_, pitch_motor_max_);
+    return motor_target - motor_angle;
 }
 
 void Gimbal::enablePitch(uint8_t enable)

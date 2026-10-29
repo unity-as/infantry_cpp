@@ -83,8 +83,10 @@ void Gimbal_Init(void)
         .pos_freq_div_pitch = 5,
 
         .yaw_min = 0.0f, .yaw_max = 0.0f,
-        .pitch_min = GIMBAL_PITCH_MIN,
-        .pitch_max = GIMBAL_PITCH_MAX,
+        .pitch_min = GIMBAL_PITCH_AHRS_MIN,
+        .pitch_max = GIMBAL_PITCH_AHRS_MAX,
+        .pitch_motor_min = GIMBAL_PITCH_MOTOR_MIN,
+        .pitch_motor_max = GIMBAL_PITCH_MOTOR_MAX,
     };
 
     gc.init(cfg);
@@ -196,11 +198,8 @@ void Gimbal_AutoAim(float yaw_err, float pitch_err)
     if (++div < 10) return;
     div = 0;
 
-    // 限制误差范围，防止云台打到极限位置
-    if (gc.pitch_.actual_angle - gc.pitch_max_ > pitch_err)
-        pitch_err = gc.pitch_.actual_angle - gc.pitch_max_;
-    else if (gc.pitch_.actual_angle - gc.pitch_min_ < pitch_err)
-        pitch_err = gc.pitch_.actual_angle - gc.pitch_min_;
+    // 自瞄输入为“当前 - 目标”，转换为“目标 - 当前”后复用双重限位。
+    pitch_err = -gc.limitPitchError(-pitch_err);
 
     // 自瞄 PID: 误差 → 速度指令
     aim_pid_yaw.update(yaw_err);

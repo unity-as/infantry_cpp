@@ -7,6 +7,18 @@
 
 - `leg_main` 模块同步的后续覆盖：[接收与电机回归范围](../../../tools/tests/leg_sync/README.md)。现用 VT13 / DJI 已随本次功能完成实车试用；DT7 / 达妙当前未接入应用，保持待验证。
 
+## pitch 双重限位
+
+开发分支：`codex/gimbal-pitch-mechanical-limits`，代码提交 `b66bcf3`。
+状态：用户报告“测完了”，并要求直接合入 main；本轮未调整已测试的功能代码或配置。
+pitch 编码器零位、AHRS 限幅和电机角限幅统一维护在 [config.h](../../../project/application/config.h)，
+两组限幅暂用同一数值、可独立调整；位置模式和自瞄误差的处理见 [云台流水线](../../docs/impl/gimbal/pipeline.md)。
+
+- [x] 主机边界检查与 ARM 构建通过，方法和结果见 [阶段记录](../history/history.md#pitch-编码器零位与双重限位)。
+- [x] 当前分支固件已通过 CMSIS-DAP 写入、Flash 校验并复位，固件身份见 [烧录记录](../history/history.md#pitch-双重限位烧录)。
+- [x] 用户报告完成本次实机测试并要求集成；此项为用户反馈，未另行提供分项工况或量化数据。
+- 电机限位继续按用户要求沿用现有 pitch 范围，本轮未新增机械端点标定数据。
+
 ## TIM5 时基与 PID 验证结果
 
 开发分支：`codex/timer-1ms-pending-test`。状态：**已烧录并校验、板端配置检查通过，用户实车反馈“完美”**；用户已要求结束额外检查并直接合入 main、推送。

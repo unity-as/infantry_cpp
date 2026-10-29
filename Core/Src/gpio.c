@@ -70,11 +70,11 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(MAG_RST_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : INT_MAG_Pin */
-  GPIO_InitStruct.Pin = INT_MAG_Pin;
+  /*Configure GPIO pin : MAG_INT_Pin */
+  GPIO_InitStruct.Pin = MAG_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(INT_MAG_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(MAG_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : KEY_Pin */
   GPIO_InitStruct.Pin = KEY_Pin;
@@ -89,8 +89,8 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(ACC_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : INT1_Accel_Pin INT1_Gyro_Pin */
-  GPIO_InitStruct.Pin = INT1_Accel_Pin|INT1_Gyro_Pin;
+  /*Configure GPIO pins : ACC_INT_Pin GYRO_INT_Pin */
+  GPIO_InitStruct.Pin = ACC_INT_Pin|GYRO_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
