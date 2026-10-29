@@ -17,17 +17,27 @@ application/
 
 ## 初始化流程 (Robot_Init)
 
-```c
+```cpp
 void Robot_Init(void)
 {
     DWT_Init();                     // 高精度延时
+    DJIMotor::timbaseSelect(&htim5); // 电机控制时基先于各子系统初始化
     Cmd_Init();                     // AHRS/遥控/minipc/裁判/Power/RGB 集中初始化
-    Chassis_Init();                 // 内部创建 Chassis_Task
+#if GIMBAL_INIT
     Gimbal_Init();                  // 内部创建 Gimbal_Task
+#endif
+#if CHASSIS_INIT
+    Chassis_Init();                 // 内部创建 Chassis_Task
+#endif
+#if SHOOT_INIT
     Shoot_Init();                   // 内部创建 Shoot_Task
-    DJIMotor_TimbaseSelect(&htim5); // 电机控制定时基准
+#endif
 }
 ```
+
+开关维护在 [config.h](../../../project/application/config.h)。关闭发射机构采用 `SHOOT_INIT=0`：
+跳过整个 `Shoot_Init`，两只摩擦轮和拨盘均不注册，`Shoot_Task` 也不创建。
+摩擦轮控制逻辑正常跟随 `shoot_cmd.enable`，不在任务中强制失能；需要启用发射机构时，将 `SHOOT_INIT` 设为 1。
 
 ## Robot_Task — 控制信息中枢
 
