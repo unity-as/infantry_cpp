@@ -176,56 +176,32 @@
 
 ### 同步 leg_main 遥控、Daemon 与电机模块
 
-- **任务**：从 `leg_main` 提交 `12b4395` 同步 VT13、DT7、Daemon、DJI 与达妙模块，应用改用 VT13；Serial 实现与来源相同，小电脑与裁判系统同步显式 TIM 依赖。
-- **原因**：统一维护项目间的接口与毫秒超时契约。
-- **变更文件**：`project/modules/` 对应驱动及说明、`bsp_tim` 的 F407 周期计算、`application/cmd`、关联文档入口；回归方法见 [模块测试](../../../tools/tests/leg_sync/README.md)。平台差异仅适配经典 CAN、TIM5 与 F407 APB 时钟；生成代码与应用调参保持原值。
-- **验证结果**：7 组主机回归共 168 个断言通过，覆盖范围及预期见测试说明；ARM Debug 构建通过，RAM 80816 B、FLASH 118900 B。未烧录，实车行为未验证。
-- **待办**：见 [当前迭代](../todo/current.md)。
-
-### 两端 Serial 毫秒等待与计时边界
-
-- **任务**：Serial 满缓冲等待参数改为 1 ms，并将 Daemon 的额外一拍、相位和 Serial 事件边界同步到两端模块 README；未修改 Daemon 算法。
-- **原因**：统一等待参数和说明，避免将毫秒配置理解为精确回调时刻或逐字节静默检测。
-- **验证结果**：步兵主机 9 组共 201 项检查通过，leg_main 的 TIM/Daemon/Serial 5 组共 80 项检查通过；两端 ARM Debug 构建通过，未烧录。可复现命令见 [测试入口](../../../tools/tests/leg_sync/README.md)。
-- **待办**：额外发现及剩余差异见 [当前对齐清单](../todo/current.md#跨项目通用模块对齐2026-10-29)。
-
-### 定时器时基与 PID 配套（待实机测试）
-
-- **任务**：保存用户的 CubeMX 定时器配置，并为实际调用周期变化补齐底盘、云台、摩擦轮 PID 参数；代码提交 `41ee4ac`，继续保留在 `codex/timer-1ms-pending-test`，未合并 main。
-- **原因**：定时器输入时钟受 APB 归属影响，原 TIM5 实际周期与 PID 配置不符。硬件配置的唯一维护位置为 [硬件事实](../../conventions/hardware.md#时钟树与定时器)，配套换算与适用边界见 [PID 模块](../../../project/modules/alg/pid/README.md#tim5-周期修正)。
-- **变更文件**：用户生成的 `Core/Src/tim.c`、`infantry_cpp.ioc`；应用 `chassis.cpp`、`gimbal.cpp`、`shoot.cpp`；PID README、硬件事实和当前待办。旧云台调参说明标明为历史 C 版记录，避免与当前秒制 PID 和参数混淆。未手改 Core/Drivers；其余预存生成文件差异继续保留在工作区。
-- **验证方法与预期**：核对 `.ioc` 与生成代码的 PSC/ARR；以修改前配置为基准，编译实际 `pid.cpp`，比较相同物理时长内的恒误差 P/I 输出、匀速反馈的微分输出、积分输出上限及滤波阶跃，预期在浮点容差内保持原尺度；另运行现有 TIM、Daemon、`serial_1ms` 主机用例并构建 ARM Debug 固件。
-- **验证结果**：四个定时器的源码配置与 `.ioc` 一致；PID 数值检查 42 项通过，TIM/Daemon/Serial 共 63 项通过。`cmake --build build` 通过，RAM 80816 B、FLASH 118912 B。构建与主机检查基于当前工作区，包含用户预存生成结果；修改前 1438 个脏文件内容按 SHA-256 核对未被本轮改写。
-- **结论与待办**：本阶段仅核对源码周期和参数换算，尚未烧录；后续烧录与实车验证结果见下节，当前状态见 [验证清单](../todo/current.md#tim5-时基与-pid-验证结果)。
+- **任务**：从 `leg_main` 的 `12b4395` 同步 VT13、DT7、Daemon、DJI、达妙及相关调用方；应用使用 VT13。两端 Serial 满缓冲等待均改为 1 ms，并同步毫秒超时与额外一拍的边界说明。
+- **原因**：统一维护项目间的通用接口与计时契约，保留 F407 的经典 CAN、TIM5 等平台适配。
+- **变更文件**：`project/modules/`、`bsp_tim`、`application/cmd` 及模块说明；原理和回归方法见 [模块测试](../../../tools/tests/leg_sync/README.md)。
+- **验证结果**：步兵主机 9 组共 201 项、leg_main 主机 5 组共 80 项检查通过，两端 ARM 构建通过；后续步兵实车结果并入下节。主机验证不代表真实 DMA 连续流或所有未接入模块已实测。
+- **待办**：跨项目接口差异及未接入模块覆盖统一见 [当前迭代](../todo/current.md#跨项目通用模块对齐2026-10-29)。
 
 ### 烧录、板端检查与用户实车确认
 
-- **固件与烧录**：开发分支 `codex/timer-1ms-pending-test`，代码 `41ee4ac`；`cmake --build build` 确认无待构建项后，经 CMSIS-DAP / OpenOCD 写入 STM32F407（device id `0x10076413`），`verify` 通过并复位。BIN 为 118912 B，SHA-256 为 `aac33647d31d7f7453c3c22e7ba4b5720460c9f665724e98caaba808f8447cd7`。构建包含用户预存生成结果，其余文件保持原状。
-- **方法与预期**：通过 SWD 在运行状态读取 RCC/TIM 寄存器、HAL/RTOS tick、故障状态和运行内存；预期时钟及 PID 参数与当前配置一致、tick 推进，电机通信和发送无新增失败。未通过写变量注入电机指令。
-- **板端结果**：RCC 及各 TIM 的 PSC/ARR 与 [硬件事实](../../conventions/hardware.md#时钟树与定时器) 一致；TIM5 的 CEN/UIE 已置位。含读操作开销的约 1 s 窗口内，HAL/RTOS tick 分别推进 1014/1013，CFSR/HFSR 均为零。运行内存中的 PID 增益、积分限幅、滤波、周期及位置环 5 分频与代码一致。
-- **运行采样**：24 组采样覆盖 HAL tick 24270 ms，VT13 在线，9 个 DJI 电机通信有效、发送组入队结果均正常、累计入队失败均为零；采到的失能状态电流指令归零。两摩擦轮全程失能，指令为零。此采样不能单独证明精确中断周期、最坏执行时间或闭环稳定性。
-- **用户实车反馈**：请用户操作底盘低速前后/转向、云台静止保持/小幅跟随及关闭遥控停机后，用户回复“完美”，随后明确要求结束额外检查、直接合入 main 并推送。
-- **采集限制**：运行采样后的附加 128 KiB RAM 导出在 `0x200144ec` 发生 CMSIS-DAP 命令应答不匹配，整块导出未完成；未将该文件当作完整快照或通过依据。此前 24 组状态采样及故障寄存器读取已完成。按用户要求未继续重试或追加板端测试，未改变功能代码。
-- **后续边界**：未测项目继续保留在 [验证清单](../todo/current.md#tim5-时基与-pid-验证结果)；本轮以软件检查、板端配置和用户实车反馈作为集成依据，不移动既有“老步兵标准基线”标签。
+- **任务**：保存用户生成的 TIM 配置，按实际 1 ms 控制周期换算底盘、云台和摩擦轮 PID；代码 `41ee4ac`，已合入 `main` 的 `bdd8b41` 并推送。
+- **原因**：原 TIM5 实际周期与 PID 配置不符。时钟和 PSC/ARR 只维护在 [硬件事实](../../conventions/hardware.md#时钟树与定时器)，参数换算只维护在 [PID 模块](../../../project/modules/alg/pid/README.md#tim5-周期修正)。
+- **变更文件**：用户生成的 `Core/Src/tim.c`、`infantry_cpp.ioc` 及应用 PID 配置和说明；未手改 Core/Drivers，其余预存文件内容按 SHA-256 核对保留。
+- **验证结果**：PID 数值检查 42 项、TIM/Daemon/Serial 检查 63 项通过；ARM 构建、CMSIS-DAP 写入、校验和复位通过。BIN 118912 B，SHA-256 `aac33647d31d7f7453c3c22e7ba4b5720460c9f665724e98caaba808f8447cd7`。板端时钟、周期、PID 参数和 tick 推进符合配置，CFSR/HFSR 为零；约 24 s 的 24 组采样中 9 个电机通信有效、发送无累计失败，两摩擦轮在该历史固件中保持失能。用户对底盘、云台和遥控停机测试反馈“完美”。采样后的附加 RAM 导出遇到 CMSIS-DAP 应答错误，未作为完整快照使用。
+- **待办**：按用户要求结束追加检查；未测指标和具体证据范围见 [验证清单](../todo/current.md#tim5-时基与-pid-验证结果)。
 
 ### pitch 编码器零位与双重限位
 
-- **任务与原因**：根据用户水平姿态下原始 ECD 约 1947/1948 的实测，以 1948 校准 pitch 电机零位；按用户要求把 AHRS 与电机角两组限位放入 `config.h`，暂时沿用相同数值，避免姿态目标驱动电机越过机械允许范围。
-- **变更范围**：代码提交 `b66bcf3`，分支 `codex/gimbal-pitch-mechanical-limits`。修改 `config.h`、`gimbal.h/.cpp` 与 `gimbal_core.h/.cpp`；位置模式和自瞄复用 `limitPitchError`。原理与速度入口边界统一维护在 [云台流水线](../../docs/impl/gimbal/pipeline.md)，接口见 [云台接口](../../docs/impl/gimbal/interface.md)。未调整 PID 增益、前馈、分频或 yaw 行为。
-- **验证方法与预期**：编译实际 `gimbal.cpp`、`gimbal_core.cpp`、PID、DJI 解码、Daemon 与 TIM 实现，用既有 CAN/TIM 桩及模拟 AHRS 输出代替硬件输入；预期不越界时保留原误差、目标越界时误差止于边界、实际已越界时指向区间内，并保持自瞄误差符号与位置环分频。通过 CAN 接收桩核对初始化 ECD 及相邻编码器值对应的零位偏差，并用不同的两组上下限检查其独立作用。
-- **验证结果**：主机 91 项检查通过；`cmake --build build` 通过，RAM 80824 B、FLASH 119096 B；`git diff --check` 通过。此次本地主机检查脚本和输出位于忽略的 `build/pitch-limit-check/`、`build/pitch-limit-check.log`，构建日志为 `build/pitch-limit-build.log`。
-- **未验证与待办**：未烧录，真实水平零位、边界与方向、底盘倾斜时的闭环行为，以及真实机械端点余量尚未验证；电机角限位当前按用户要求沿用 AHRS 限位值。未合并或推送；待办见 [当前迭代](../todo/current.md#pitch-双重限位)。
+- **任务**：依据用户原始 ECD 约 1947/1948 的实测校准 pitch 零位，将 AHRS 与电机角两组限位集中到 `config.h`；位置模式和自瞄共用 `limitPitchError`。代码 `b66bcf3`，用户报告“测完了”后合入 `main` 的 `ee01c9b`。
+- **原因**：由机械位置限制 AHRS 目标对应的电机位置。计算过程见 [云台流水线](../../docs/impl/gimbal/pipeline.md)，配置只维护在 [config.h](../../../project/application/config.h)。
+- **变更文件**：`config.h`、`gimbal.h/.cpp`、`gimbal_core.h/.cpp` 及云台说明；PID 参数、前馈、分频和 yaw 控制保持原值。
+- **验证结果**：编译实际云台、PID、DJI 解码和 TIM 实现，主机边界检查 91 项通过，覆盖两组限位、已越界回拉、自瞄符号及分频。ARM 构建、CMSIS-DAP 写入、校验和复位通过；BIN 119096 B，SHA-256 `dd20c517c85ec4db944e7b6808c1b1c06deb901a83d8c9b8758b0b430259bd1c`，合入 main 后重新构建的哈希一致。实机结论来自用户反馈，未补造分项测试或量化数据。按用户要求删除本地 `老步兵标准基线` 标签（旧指向 `5d0b5e2`），远端无同名标签，旧合并历史保留。
+- **待办**：电机限位暂按用户要求与 AHRS 范围相同，未新增机械端点标定数据；现用范围见 [当前迭代](../todo/current.md#pitch-双重限位)。
 
-### pitch 双重限位烧录
+### 发射机构初始化开关修正
 
-- **固件身份**：分支 `codex/gimbal-pitch-mechanical-limits`，代码提交 `b66bcf3`，烧录时 HEAD 为 `58e6703`。BIN 大小 119096 B，SHA-256 为 `dd20c517c85ec4db944e7b6808c1b1c06deb901a83d8c9b8758b0b430259bd1c`。
-- **方法与预期**：按用户要求执行 `cmake --build build`，再依 `.vscode/settings.json` 使用 CMSIS-DAP、`target/stm32f4x.cfg`，执行 OpenOCD `program build/infantry.elf verify reset exit`；预期写入成功、校验一致并复位。
-- **结果**：构建确认无待更新项；识别 STM32F407，device id `0x10076413`、Flash 1024 KiB。OpenOCD 输出 `Programming Finished`、`Verified OK`、`Resetting Target`，退出码为 0。日志为忽略的 `build/pitch-limit-flash-build.log`、`build/pitch-limit-flash.log`。
-- **验证边界**：本轮完成烧录与写入校验，未进行云台限位、回拉或底盘倾斜实测；仍按 [当前待办](../todo/current.md#pitch-双重限位) 跟踪。未更改功能代码、合并或推送。
-
-### pitch 实测确认、配置核对与旧基线标签移除
-
-- **用户反馈与集成依据**：用户报告“测完了”，要求进入 main、删除上次标准基线合并的标签并核对 `config.h`。本次实机结论以用户反馈为依据，未追加未提供的分项测试或量化指标；功能代码仍为 `b66bcf3`，与前节烧录版本一致。
-- **配置核对**：核对 [config.h](../../../project/application/config.h) 全部现用参数及 `Gimbal_Init`、射击应用的使用点。两组 pitch 限位独立配置、当前取值相同，编码器零位采用用户实测值；三项调试开关均关闭、三个应用均初始化。射击初始化启用不代表摩擦轮使能，摩擦轮在初始化和任务中仍强制关闭。其余 yaw 零位、重力前馈及发射参数未被本轮修改。
-- **标签处理**：已删除本地附注标签 `老步兵标准基线`；删除前标签对象为 `8cdb4cfb4092884b1d3707a7a812fba006778805`，指向旧合并提交 `5d0b5e2551e8d3c00d06c51ae9f36fdd9ef71bc4`。通过 `git ls-remote --tags origin` 定向查询确认远端不存在同名标签；旧合并提交及其历史保留。
-- **当前状态**：实测确认与现用范围见 [当前迭代](../todo/current.md#pitch-双重限位)。按用户要求直接合入 main，本轮未要求推送或重新烧录。
+- **任务**：按用户澄清，以跳过整个发射机构初始化实现关闭，恢复摩擦轮正常跟随射击使能；代码 `1594939`。同时将本日分散的实现、烧录、实测和配置核对记录合并为阶段摘要。
+- **原因**：此前把“关闭摩擦轮”错误实现为初始化和任务中强制失能；正确要求是关闭 `Shoot_Init`，由启动配置控制整个机构。
+- **变更文件**：`config.h`、`shoot.cpp`、整车初始化说明、PID README 和当前待办；启动策略只维护在 [整车初始化流程](../../docs/impl/architecture.md#初始化流程-robot_init)。
+- **验证结果**：主机 43 项检查通过：真实 `Robot_Init` 在其余应用桩配合下跳过发射电机注册、CAN 实例与任务创建；单独调用真实 `Shoot_Init` 后，摩擦轮正常随使能产生控制输出，失能时电流及 CAN 指令归零。ARM 构建通过，RAM 80816 B、FLASH 118304 B；ELF 中不包含 `Shoot_Init` 和 `Shoot_Task`。本地检查脚本及日志位于忽略的 `build/shoot-init-check/`、`build/shoot-init-check.log`、`build/shoot-init-build.log`。
+- **待办**：本次修正未烧录、未推送；板上仍为前节 pitch 限位固件，恢复后的发射逻辑未做硬件发射实测。
