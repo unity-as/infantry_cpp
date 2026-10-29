@@ -53,7 +53,8 @@ public:
         uint8_t pos_freq_div_yaw;
         uint8_t pos_freq_div_pitch;
         float yaw_min, yaw_max;
-        float pitch_min, pitch_max;
+        float pitch_min, pitch_max;                // AHRS pitch 限位 [deg]
+        float pitch_motor_min, pitch_motor_max;    // 编码器零位下的电机角限位 [deg]
     };
 
     void init(const Config& config);   // 替代 Gimbal_Register
@@ -63,7 +64,8 @@ public:
     Axis yaw_;                 // yaw 轴
     Axis pitch_;               // pitch 轴
     float yaw_min_, yaw_max_;       // 限位 [deg]
-    float pitch_min_, pitch_max_;   // 限位 [deg]
+    float pitch_min_, pitch_max_;   // AHRS pitch 限位 [deg]
+    float pitch_motor_min_, pitch_motor_max_;   // 电机角限位 [deg]
 
     // —— API ——
     void enablePitch(uint8_t enable);                          // 替代 Gimbal_Enabale_Pitch
@@ -72,6 +74,7 @@ public:
     void setTarget(float yaw, float pitch);                    // 替代 Gimbal_SetTarget
     void setIncrement(float yaw_delta, float pitch_delta);     // 替代 Gimbal_SetIncrement
     void setPitchAbsolute(float angle);                        // 替代 Gimbal_SetPitchAbsolute
+    float limitPitchError(float error) const;                  // 目标 - 当前 [deg]，先 AHRS 后电机限位
     void setMode(Mode yaw_mode, Mode pitch_mode);              // 替代 Gimbal_SetMode
     void setVelocity(float yaw_vel, float pitch_vel);          // 替代 Gimbal_SetVelocity
     void setVelocityFF(float yaw_ff, float pitch_ff);          // 替代 Gimbal_SetVelocityFF

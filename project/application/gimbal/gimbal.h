@@ -7,10 +7,6 @@
 
 #include <stdint.h>
 
-// 软件限位 (deg)
-#define GIMBAL_PITCH_MIN  -30.7f
-#define GIMBAL_PITCH_MAX   10.5f
-
 struct Gimbal_Cmd {
     float yaw;
     float pitch;

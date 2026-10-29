@@ -25,7 +25,13 @@ extern "C" {
 
 // 云台电机初始位置 — 编码器值
 #define GIMBAL_YAW_ECD      (60*8192.0f/360.0f)  // 云台偏航电机初始位置 (编码器值)
-#define GIMBAL_PITCH_ECD    (120*8192.0f/360.0f)  // 云台俯仰电机初始位置 (编码器值)
+#define GIMBAL_PITCH_ECD    1948.0f  // 底盘水平、AHRS pitch=0 时的原始编码器值
+
+// pitch 限位 [deg]：AHRS 为姿态角，MOTOR 为相对上述编码器零位的电机角
+#define GIMBAL_PITCH_AHRS_MIN   -30.7f
+#define GIMBAL_PITCH_AHRS_MAX    10.5f
+#define GIMBAL_PITCH_MOTOR_MIN  -30.7f
+#define GIMBAL_PITCH_MOTOR_MAX   10.5f
 
 // 云台重力补偿torque
 #define GIMBAL_PITCH_CURRENT_FF  -0.150f
