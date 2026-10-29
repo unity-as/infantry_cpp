@@ -5,21 +5,22 @@
 - 整车联调 / 调参
 - 射击接入裁判热量检查（shoot 内 TODO）
 
-- `leg_main` 模块同步后的实车联调：[接收与电机回归范围](../../../tools/tests/leg_sync/README.md)，重点检查遥控失联保护、未滤波速度反馈与 CAN 入队状态；DT7 / 达妙当前未接入应用。
+- `leg_main` 模块同步的后续覆盖：[接收与电机回归范围](../../../tools/tests/leg_sync/README.md)。现用 VT13 / DJI 已随本次功能完成实车试用；DT7 / 达妙当前未接入应用，保持待验证。
 
-## TIM5 时基与 PID 待测试
+## TIM5 时基与 PID 验证结果
 
-分支：`codex/timer-1ms-pending-test`。状态：配置与参数已保存，**待实机测试；未烧录、未合并 main**。
+开发分支：`codex/timer-1ms-pending-test`。状态：**已烧录并校验、板端配置检查通过，用户实车反馈“完美”**；用户已要求结束额外检查并直接合入 main、推送。
 总线、预分频和周期只维护在 [硬件事实](../../conventions/hardware.md#时钟树与定时器)，
-增益、积分限幅及滤波换算口径只维护在 [PID 模块](../../../project/modules/alg/pid/README.md#tim5-周期修正待实机测试)。
+增益、积分限幅及滤波换算口径只维护在 [PID 模块](../../../project/modules/alg/pid/README.md#tim5-周期修正)。
 
-- [ ] 板端实测 TIM5 更新间隔与最坏中断耗时，核对硬件事实中的周期，确认控制及 CAN 发送能在一拍内完成。
-- [ ] 核对 TIM1、TIM4、TIM10 的实际 PWM 周期，以及 HAL tick、RGB PWM 输出；TIM4 包含用户已有的 ARR 调整。
-- [ ] 底盘四轮验证启停、速度阶跃、稳态误差、积分作用和功率限流后的恢复。
-- [ ] 云台 Yaw/Pitch 验证静止保持、跟随、位置环分频和速度环稳定性；检查滤波与微分噪声影响。
-- [ ] 核对 VT13 失联停机及 Serial 满缓冲等待窗口；软件超时契约见 [Daemon](../../../project/modules/daemon/README.md#毫秒拍数与相位)。
+- [x] ARM 构建、CMSIS-DAP 烧录、Flash verify、复位运行完成。
+- [x] 板端 RCC、各 TIM 的 PSC/ARR、TIM5 更新中断使能与 HAL/RTOS tick 推进已核对，采样时 CFSR/HFSR 均为零。
+- [x] 运行内存中的底盘、云台 PID 参数与位置环分频与初始化配置一致，Serial 的超时换算已通过主机检查。
+- [x] 约 24 s 的 24 组运行采样中，9 个 DJI 电机通信有效、发送组入队正常，累计入队失败计数均为零；采到的失能状态指令均归零。
+- [x] 用户对底盘低速前后/转向、云台静止保持/小幅跟随及关遥控停机的测试请求反馈“完美”；此项为用户实车反馈。
 - 摩擦轮继续关闭；其参数已随时基配套换算，重新启用前需单独测试。
-- 已完成 ARM Debug 构建，以及主机参数、PID 数值和 1 ms 通信时序检查；方法与结果见 [阶段记录](../history/history.md#定时器时基与-pid-配套待实机测试)。上述检查不证明板端时序或整车稳定性。
+- 本轮未测：TIM5 最坏中断耗时、示波器 PWM 波形、闭环阶跃/噪声定量指标，以及 Serial 实际满缓冲等待窗口；按用户要求不再追加检查。软件超时契约仍见 [Daemon](../../../project/modules/daemon/README.md#毫秒拍数与相位)。
+- 方法、固件身份、观测结果及采集限制统一见 [阶段记录](../history/history.md#烧录板端检查与用户实车确认)。
 
 ## 跨项目通用模块对齐（2026-10-29）
 
@@ -33,7 +34,7 @@
 |---|---|---|
 | Serial 初始化无输入也搬运一次 | 已用两端实际源码及模拟 UART 复现；行为说明只维护在 [Serial](../../../project/modules/serial/README.md#满缓冲等待) | 记录，未改变初始化门控 |
 | 小电脑、裁判的首帧在线语义 | 两端 `Minipc_Init`、`Referee_Init` 均直接继承 Daemon 的初始化在线状态；与 VT13/DT7 的首帧门控不同。裁判 `referee_info.online` 初始为 0，和 `Referee_Online()` 初值也不同。见 [Daemon](../../../project/modules/daemon/README.md#调用方) | 待确认是否统一首个有效帧才在线，以及失联是否清数据 |
-| 步兵 PID 周期与心跳 | 原 TIM5 周期与 PID 配置不符，已补齐时基和 PID 配套修正；当前状态见 [待测试项](#tim5-时基与-pid-待测试) | 参数换算与构建完成，待实机联调 |
+| 步兵 PID 周期与心跳 | 原 TIM5 周期与 PID 配置不符，已补齐时基和 PID 配套修正；当前状态见 [验证结果](#tim5-时基与-pid-验证结果) | 板端配置核对完成，用户实车反馈通过 |
 | 温控 PID 的历史周期 | 两端 `IMUTemp` 均保留 0.001 s 配置，AHRS 温控更新约 750 ms；代码已注明是保留历史调参作用 | 不直接按实际间隔替换，否则改变温控作用 |
 | 达妙切模式等待 | 两端 `kModeSwitchWaitTicks=2`，是两个心跳而非固定 2 ms；实际等待随所绑时基变化，当前步兵时基见 [硬件事实](../../conventions/hardware.md#时钟树与定时器)，非整个模式切换总时长 | 待决定保留拍数契约还是统一毫秒等待；当前实现已一致 |
 | 离线到 DJI 零指令的时机 | Daemon 与电机控制回调按注册顺序分发；若先发指令、后置无效，零指令在下一次控制心跳发送。见 [DJI](../../../project/modules/motor/dji_motor/README.md) | 已记录边界；未改中断排序 |

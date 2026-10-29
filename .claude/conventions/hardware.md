@@ -58,7 +58,8 @@
 
 2026-10-29 按 [时钟初始化](../../Core/Src/main.c)、[HSE 配置](../../Core/Inc/stm32f4xx_hal_conf.h)、
 [定时器生成代码](../../Core/Src/tim.c)、[CubeMX 配置](../../infantry_cpp.ioc) 与
-[HAL 时基实现](../../Core/Src/stm32f4xx_hal_timebase_tim.c) 核对。以下为源码配置事实，板端实际计时与输出待实测。
+[HAL 时基实现](../../Core/Src/stm32f4xx_hal_timebase_tim.c) 核对，并已读取板端 RCC 与 TIM 寄存器确认配置生效。
+下表周期按实际寄存器和时钟树计算，尚未用示波器测量 PWM 波形或 TIM5 最坏中断耗时。
 
 - HSE 为 12 MHz；PLL M=6、N=168、P=2，SYSCLK 与 AHB 均为 168 MHz。
 - APB1 四分频，PCLK1 为 42 MHz；TIM4、TIM5、TIM14 属于 APB1，定时器输入时钟为 84 MHz。
@@ -84,5 +85,6 @@ TIM14 保留 HAL 自动计算预分频的逻辑，不改成固定数字。
 从旧 `tim.c` 的 65535 对齐为 `.ioc` 中的 2000-1，因此其当前周期为 2 ms。
 TIM1、TIM10 的表达式改写不改变数值和周期。TIM5 同时驱动 RGB PWM，载波随修正由 500 Hz 变为 1 kHz。
 
-**状态：待实机测试。** 时基修正的 PID 配套口径见 [PID 模块](../../project/modules/alg/pid/README.md#tim5-周期修正待实机测试)，
-联调项目和验证状态统一见 [当前迭代](../records/todo/current.md#tim5-时基与-pid-待测试)。
+**状态：已烧录校验，板端配置检查完成，用户实车测试反馈通过。** 时基修正的 PID 配套口径见
+[PID 模块](../../project/modules/alg/pid/README.md#tim5-周期修正)，验证结果和未测项目统一见
+[当前迭代](../records/todo/current.md#tim5-时基与-pid-验证结果)。
