@@ -15,9 +15,6 @@
 #include "referee.h"
 #include "power.h"
 
-// RGB 缓冲能量指示：满→蓝，绿随能量减弱，红随能量增强
-#define CHASSIS_BUFFER_MAX_J   60.0f   // 缓冲能量上限 (J)，归一化 + "满"阈值
-
 AHRS cmd_ahrs;
 static RGB cmd_rgb;
 
@@ -51,20 +48,20 @@ static void Cmd_UpdateRefereeDebug(void)
 void Cmd_Init(void)
 {
     AHRS::Config ahrs_cfg = {
-        .accel_range    = BMI088::AccRange::G6,
-        .gyro_range     = BMI088::GyroRange::Dps2000,
-        .board_yaw      = 180.0f,
-        .board_pitch    = 0.0f,
-        .board_roll     = -90.0f,
-        .accel_lpf_coef = 0.0085f,
+        .accel_range    = AHRS_ACCEL_RANGE,
+        .gyro_range     = AHRS_GYRO_RANGE,
+        .board_yaw      = AHRS_BOARD_YAW_DEG,
+        .board_pitch    = AHRS_BOARD_PITCH_DEG,
+        .board_roll     = AHRS_BOARD_ROLL_DEG,
+        .accel_lpf_coef = AHRS_ACCEL_LPF_COEF,
     };
     cmd_ahrs.init(ahrs_cfg);
 
-    VT13_Init(&huart3);
-    Minipc_Init(&huart6);
-    Referee_Init(&huart1);
+    VT13_Init(VT13_UART_HANDLE);
+    Minipc_Init(MINIPC_UART_HANDLE);
+    Referee_Init(REFEREE_UART_HANDLE);
 
-    Power_Init(&hadc3);   // C 板母线电压
+    Power_Init(POWER_ADC_HANDLE);   // C 板母线电压
 
     cmd_rgb.initDefault();
 }
@@ -179,9 +176,9 @@ void Cmd_Task(void)
 
     const referee_info_t *referee_data = Referee_GetData();
 
-    // 母线电压: 1kHz 任务里 100ms(10Hz) 更新一次
+    // 母线电压与小电脑上报：按配置的 Cmd_Task 调用次数更新
     static uint32_t volt_tick = 0;
-    if (++volt_tick >= 10) {
+    if (++volt_tick >= CMD_TELEMETRY_PERIOD_CYCLES) {
         volt_tick = 0;
         bus_voltage = Power_GetBusVoltage();
 
@@ -190,9 +187,9 @@ void Cmd_Task(void)
     }
 
     static uint32_t tick = 0;
-    if(tick < 1000)
+    if(tick < CMD_STARTUP_DELAY_CYCLES)
     {
-        //1s稳定时间，1s后再启动
+        // 等待配置的稳定拍数后再启动
         tick++;
         return;
     }
@@ -202,18 +199,17 @@ void Cmd_Task(void)
     chassis_cmd.enable = en;
     shoot_cmd.enable   = en;
 
-    // ---- 底盘功率上限：二值化决策在应用层（暂注释，测试时固定上限）----
-    // 二值动态限功率：buffer_energy > 阈值(20J) → 放开；≤ 阈值 → 限死在功率上限
-    float limit = (referee_data->power_heat.buffer_energy > 40.0f) ?
+    // 底盘功率决策：缓冲能量大于配置阈值时放开，否则按裁判功率与能量余量计算
+    float limit = (referee_data->power_heat.buffer_energy > CHASSIS_BUFFER_RELEASE_J) ?
                 0.0f                                                  // 放开（limit<=0 不限流）
                 :
                 (float)referee_data->robot_status.chassis_power_limit
-                + 10 - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
+                + CHASSIS_POWER_MARGIN_W - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
 
     Chassis_SetPowerLimit(limit);
 
     // RGB: 缓冲能量指示 —— 满→蓝 / 绿随能量减弱 / 红随能量增强
-    float buffer_energy = (float)referee_data->power_heat.buffer_energy;   // 0~60 J
+    float buffer_energy = (float)referee_data->power_heat.buffer_energy;   // J
     float ratio = buffer_energy / CHASSIS_BUFFER_MAX_J;   // 0~1
     if (ratio > 1.0f) ratio = 1.0f;
     if (ratio < 0.0f) ratio = 0.0f;

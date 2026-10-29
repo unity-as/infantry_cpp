@@ -25,64 +25,22 @@ void Gimbal_Init(void)
 {
     Gimbal::Config cfg = {
         .ahrs                = &cmd_ahrs,
-        .can_handle          = &hcan2,
-        .htim                = &htim5,
-        .motor_id_yaw        = 1,
-        .motor_id_pitch      = 2,
+        .can_handle          = GIMBAL_CAN_HANDLE,
+        .htim                = ROBOT_MOTOR_TIM_HANDLE,
+        .motor_id_yaw        = GIMBAL_MOTOR_ID_YAW,
+        .motor_id_pitch      = GIMBAL_MOTOR_ID_PITCH,
         .initial_angle_yaw   = GIMBAL_ECD_TO_DEG(GIMBAL_YAW_ECD),
         .initial_angle_pitch = GIMBAL_ECD_TO_DEG(GIMBAL_PITCH_ECD),
 
-        .pid_yaw_pos = {
-            .kp = 15.0f, .ki = 0.0f, .kd = 0.0f,
-            .mode = PID::Mode::Position,
-            .features = PID::FeatureOutputLimit,
-            .output_min = -480.0f, .output_max = 480.0f,
-            .period = 0.005f,  // TIM5 1 ms × 位置环 5 分频
-        },
-        .pid_pitch_pos = {
-            .kp = 15.0f, .ki = 0.0f, .kd = 0.0f,
-            .mode = PID::Mode::Position,
-            .features = PID::FeatureOutputLimit
-                    //   | PID::FeatureFilter
-                      | PID::FeatureIntegralLimit,
-            .integral_limit = 0.0f,
-            .output_min = -240.0f, .output_max = 240.0f,
-            .filter_alpha = 0.3f,
-            .period = 0.005f,  // TIM5 1 ms × 位置环 5 分频
-        },
-        .pid_yaw_vel = {
-            .kp = 0.04f, .ki = 0.25f, .kd = 0.00004f,
-            .mode = PID::Mode::Position,
-            .features = PID::FeatureOutputLimit
-                      | PID::FeatureIntegralLimit
-                      | PID::FeatureDerivativeOnMeasurement
-                    //   | PID::FeatureVariableGain
-                      | PID::FeatureFilter
-                      ,
-            .integral_limit = 0.4f,
-            .output_min = -1.0f, .output_max = 1.0f,
-            .filter_alpha = 0.10557281f,  // 1 - sqrt(1 - 0.2)，保持原 2 ms 滤波时间尺度
-            .kp_extra = 0.00001f,
-            .period = 0.001f,
-        },
-        .pid_pitch_vel = {
-            .kp = 0.007f, .ki = 0.03f, .kd = 0.000004f,
-            .mode = PID::Mode::Position,
-            .features = PID::FeatureOutputLimit
-                      | PID::FeatureIntegralLimit
-                      | PID::FeatureDerivativeOnMeasurement
-                      | PID::FeatureFilter
-                    ,
-            .integral_limit = 20.0f,
-            .output_min = -1.0f, .output_max = 1.0f,
-            .filter_alpha = 0.29289322f,  // 1 - sqrt(1 - 0.5)，保持原 2 ms 滤波时间尺度
-            .period = 0.001f,
-        },
+        .pid_yaw_pos = GIMBAL_YAW_POSITION_PID,
+        .pid_pitch_pos = GIMBAL_PITCH_POSITION_PID,
+        .pid_yaw_vel = GIMBAL_YAW_VELOCITY_PID,
+        .pid_pitch_vel = GIMBAL_PITCH_VELOCITY_PID,
 
-        .pos_freq_div_yaw   = 5,
-        .pos_freq_div_pitch = 5,
+        .pos_freq_div_yaw   = GIMBAL_POS_FREQ_DIV_YAW,
+        .pos_freq_div_pitch = GIMBAL_POS_FREQ_DIV_PITCH,
 
-        .yaw_min = 0.0f, .yaw_max = 0.0f,
+        .yaw_min = GIMBAL_YAW_AHRS_MIN, .yaw_max = GIMBAL_YAW_AHRS_MAX,
         .pitch_min = GIMBAL_PITCH_AHRS_MIN,
         .pitch_max = GIMBAL_PITCH_AHRS_MAX,
         .pitch_motor_min = GIMBAL_PITCH_MOTOR_MIN,
@@ -91,40 +49,15 @@ void Gimbal_Init(void)
 
     gc.init(cfg);
 
-    // --- 自瞄 PID：参数沿用云台位置 PID ---
-    PID::Config aim_yaw_cfg =
-    {
-        .kp = 6.0f, .ki = 0.0f, .kd = 0.00001f,
-        .mode = PID::Mode::Position,
-        .features = PID::FeatureOutputLimit
-                    // | PID::FeatureFilter
-                    | PID::FeatureIntegralLimit,
-        .integral_limit = 0.18f,
-        .output_min = -360.0f, .output_max = 360.0f,
-        .filter_alpha = 0.5f,
-        .period = 0.001f,
-    };
-    aim_pid_yaw.init(aim_yaw_cfg);
+    // 自瞄误差 → 速度的 PID 与云台位置环分别配置。
+    aim_pid_yaw.init(GIMBAL_AIM_YAW_PID);
+    aim_pid_pitch.init(GIMBAL_AIM_PITCH_PID);
 
-    PID::Config aim_pitch_cfg =
-    {
-        .kp = 8.0, .ki = 0.0f, .kd = 0.00001f,
-        .mode = PID::Mode::Position,
-        .features = PID::FeatureOutputLimit
-                    // | PID::FeatureFilter
-                    | PID::FeatureIntegralLimit,
-        .integral_limit = 0.18f,
-        .output_min = -360.0f, .output_max = 360.0f,
-        .filter_alpha = 0.5f,
-        .period = 0.001f,
-    };
-    aim_pid_pitch.init(aim_pitch_cfg);
-
-    gc.setCurrentFF(0.0f, GIMBAL_PITCH_CURRENT_FF);  // 重力前馈(标定值)
+    gc.setCurrentFF(GIMBAL_YAW_CURRENT_FF, GIMBAL_PITCH_CURRENT_FF);  // 重力前馈(标定值)
 
     const osThreadAttr_t attr = {
         .name = "Gimbal",
-        .stack_size = 1024,
+        .stack_size = GIMBAL_TASK_STACK_BYTES,
         .priority = osPriorityNormal,
     };
     osThreadNew(Gimbal_Task, nullptr, &attr);
@@ -195,7 +128,7 @@ void Gimbal_SyncTarget(void)
 void Gimbal_AutoAim(float yaw_err, float pitch_err)
 {
     static uint8_t div = 0;
-    if (++div < 10) return;
+    if (++div < GIMBAL_AIM_FREQ_DIV) return;
     div = 0;
 
     // 自瞄输入为“当前 - 目标”，转换为“目标 - 当前”后复用双重限位。

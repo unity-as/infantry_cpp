@@ -3,26 +3,13 @@
  * @brief   底盘应用层：读 chassis_cmd，灌入 ChassisMotion（core）
  */
 #include "chassis.h"
+#include "config.h"
 #include "chassis_motion.h"
 #include "cmsis_os2.h"
 #include <math.h>
 
 Chassis_Cmd chassis_cmd;
 static ChassisMotion chassis_inst;
-
-PID::Config pid_velocity_config =
-{
-    .kp = 0.0375f,
-    .ki = 0.3f,
-    .kd = 0.0f,
-    .mode = PID::Mode::Position,   // 位置式：反算抗饱和需要可操作的累加积分
-    .features = PID::FeatureOutputLimit
-              | PID::FeatureIntegralLimit,
-    .integral_limit = 40.0f,
-    .output_min = -20.0f,
-    .output_max = 20.0f,
-    .period = 0.001f,            // TIM5 2 ms → 1 ms：Ki 减半、积分限幅翻倍，待实机测试
-};
 
 static void Chassis_Task(void *arg)
 {
@@ -37,11 +24,11 @@ static void Chassis_Task(void *arg)
             // float error = fmodf(chassis_cmd.yaw_motor_angle + 180.0f, 360.0f);
             // if (error < 0.0f) error += 360.0f;   // fmodf 结果符号与被除数一致，负数时需归一到 [0,360)
             // error -= 180.0f;
-            float error = fmodf(chassis_cmd.yaw_motor_angle + 45.0f, 90.0f);
-            if (error < 0.0f) error += 90.0f;   // fmodf 结果符号与被除数一致，负数时需归一到 [0,90)
-            error -= 45.0f;
+            float error = fmodf(chassis_cmd.yaw_motor_angle + CHASSIS_FOLLOW_PERIOD_DEG / 2.0f, CHASSIS_FOLLOW_PERIOD_DEG);
+            if (error < 0.0f) error += CHASSIS_FOLLOW_PERIOD_DEG;   // fmodf 负结果归一到一个跟随周期内
+            error -= CHASSIS_FOLLOW_PERIOD_DEG / 2.0f;
             // chassis_inst.w_rot_ = chassis_inst.theta_ * 2.0f;//跟随底盘移动方向
-            chassis_inst.w_rot_ = error * 0.2f;//跟随云台方向
+            chassis_inst.w_rot_ = error * CHASSIS_FOLLOW_GAIN;//跟随云台方向
 
             //纯P就懒得上pid了
         }
@@ -66,27 +53,27 @@ void Chassis_Init(void)
     };
 
     ChassisMotion::Config cfg = {
-        .type = ChassisMotion::Type::Mecanum,
-        .r = 0.07625f,
-        .L = 0.37f,
-        .W = 0.37f,
+        .type = CHASSIS_MOTION_TYPE,
+        .r = CHASSIS_WHEEL_RADIUS_M,
+        .L = CHASSIS_LENGTH_M,
+        .W = CHASSIS_WIDTH_M,
         .velocity = {
-            .can_handle = &hcan1,
-            .motor_id_rf = 1,
-            .motor_id_lf = 2,
-            .motor_id_lr = 3,
-            .motor_id_rr = 4,
-            .reduction_ratio = DJIM_REDUCTION_RATIO_M3508,
-            .pid_velocity = pid_velocity_config,
-            .back_calc_coef = 0.00007f, // 回灌积分改用误差·s，旧毫秒系数除以 1000
+            .can_handle = CHASSIS_CAN_HANDLE,
+            .motor_id_rf = CHASSIS_MOTOR_ID_RF,
+            .motor_id_lf = CHASSIS_MOTOR_ID_LF,
+            .motor_id_lr = CHASSIS_MOTOR_ID_LR,
+            .motor_id_rr = CHASSIS_MOTOR_ID_RR,
+            .reduction_ratio = CHASSIS_REDUCTION_RATIO,
+            .pid_velocity = CHASSIS_WHEEL_VELOCITY_PID,
+            .back_calc_coef = CHASSIS_BACK_CALC_COEF,
         },
-        .tim_handle = &htim5,       // 速度环+功率+发电流跑在此定时器，注册先于 dji_motor
+        .tim_handle = ROBOT_MOTOR_TIM_HANDLE, // 速度环与功率计算时基；注册顺序由 Robot_Init 决定
     };
     chassis_inst.init(cfg);
 
     const osThreadAttr_t attr = {
         .name = "Chassis",
-        .stack_size = 256,
+        .stack_size = CHASSIS_TASK_STACK_BYTES,
         .priority = osPriorityNormal,
     };
     osThreadNew(Chassis_Task, nullptr, &attr);
