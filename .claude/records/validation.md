@@ -2,9 +2,17 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
-2026-10-30 文档整改从 `83b2e7e` 的 current.md、AHRS README 与云台 design-rationale 整理以下记录；没有重跑其中的构建、主机测试或实车测试。文中的“本次”“当前”“本分支”均指原记录对应阶段，不能解释为当前板上版本。旧布局与参数记录是来源快照，不与当前规范或配置同步改写。
+## 发射机构启用与烧录（2026-11-08）
+
+- 源码基线为 `3ccc055`，分支为 `codex/enable-shooter`；本次唯一源码改动是 [config.h](../../project/application/config.h) 的 `SHOOT_INIT` 从 0 改为 1，恢复摩擦轮、拨盘及射击任务初始化。
+- Debug ARM 构建通过，生成 ELF、HEX、BIN；FLASH 118932 B、RAM 80768 B。ELF 反汇编确认 `Robot_Init` 调用 `Shoot_Init()`。
+- 按 [开发启动](../docs/guide/startup/debug.md#烧录) 使用 CMSIS-DAP / SWD 写入 `build/infantry.elf`；目标识别为 Cortex-M4、设备 ID `0x10076413`、Flash 1024 KiB。OpenOCD 返回码为 0，报告 `Programming Finished`、`Verified OK` 和 `Resetting Target`。
+- 本次 ELF 的 SHA-256 为 `40afc66224535764e2fc013efc61663a5ccecf145e01875e4a9f8d7130a12d38`；本机原始构建及烧录日志保存在 Git 忽略的 `build/enable-shooter-20261108/`。
+- 本次确认范围为构建、初始化调用进入固件、写入校验及复位；未验证复位后的任务运行、电机通信、摩擦轮转动、拨盘发弹或整车行为。
 
 ## 整改前阶段记录
+
+2026-10-30 文档整改从 `83b2e7e` 的 current.md、AHRS README 与云台 design-rationale 整理以下记录；没有重跑其中的构建、主机测试或实车测试。文中的“本次”“当前”“本分支”均指原记录对应阶段，不能解释为当前板上版本。旧布局与参数记录是来源快照，不与当前规范或配置同步改写。
 
 - [C++ 布局规范](../docs/cpp/cpp_conventions.md#实例类成员排列) 规范已落实到源码（`c28fc75`）：45 个自维护头文件统一使用 `#pragma once`，补齐实例类的数据/函数分区。
   ARM 构建通过；当前 ELF 的 19 个实例类型成员顺序符合规范，180 个数据项、145 个成员函数的布局或可见性与修改前一致，BIN 逐字节相同。

@@ -4,7 +4,7 @@
 // ======= 子系统初始化（各项独立：0=跳过，1=初始化）=======
 #define GIMBAL_INIT  1
 #define CHASSIS_INIT 1
-#define SHOOT_INIT   0  // 整个发射机构：摩擦轮 + 拨盘 + Shoot_Task
+#define SHOOT_INIT   1  // 整个发射机构：摩擦轮 + 拨盘 + Shoot_Task
 
 // ======= 板级绑定与任务资源 =======
 #define ROBOT_MOTOR_TIM_HANDLE (&htim5)  // 当前硬件周期 1 ms；修改时同步核对 PID 周期
