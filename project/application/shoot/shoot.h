@@ -15,10 +15,10 @@ struct Shoot_Cmd {
 
 extern Shoot_Cmd shoot_cmd;
 
-#define MAG_DEG_PER_ROUND   (360.0f / MAG_CAPACITY)           // 45°
+#define MAG_DEG_PER_ROUND   (360.0f / MAG_CAPACITY)           // 每发对应的输出轴角度
 #define MAG_FEED_SPEED     (MAG_DEG_PER_ROUND * 1000.0f / SHOOT_PERIOD_MS)  // 拨盘转速 (deg/s), 由发弹周期和装载量算出
 #define MAG_SPEED_DEGS     MAG_FEED_SPEED   // 拨盘连发/单发速度 (输出轴 deg/s)
-#define MAG_MS_PER_ROUND  ((uint16_t)(MAG_DEG_PER_ROUND / MAG_SPEED_DEGS * 1000.0f + 0.5f))  // 63ms
+#define MAG_MS_PER_ROUND  ((uint16_t)(MAG_DEG_PER_ROUND / MAG_SPEED_DEGS * 1000.0f + 0.5f))  // 由角度与速度换算的单发时间 ms
 
 void Shoot_Init(void);
 void Shoot_Fire(uint8_t count);

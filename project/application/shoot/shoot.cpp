@@ -36,30 +36,20 @@ static void Shoot_Task(void *arg);
 
 void Shoot_Init(void)
 {
-    // 摩擦轮 M3508 (CAN2, ID1:REVERT, ID2:NORMAL)
+    // 摩擦轮接线、方向与 PID 从整车配置注入。
     DJIMotor::Config cfg_fric = {
-        .can_handle = &hcan2,
-        .motor_type = DJIMotor_3508,
-        .reduction_ratio = 19.0f,
-        .pid_velocity = {
-            .kp = 0.01f,
-            .ki = 0.05f,
-            .kd = 0.0f,
-            .mode = PID::Mode::Delta,
-            .features = PID::FeatureOutputLimit | PID::FeatureFilter,
-            .output_min = -20.0f,
-            .output_max = 20.0f,
-            .filter_alpha = 0.16333997f,  // 1 - sqrt(1 - 0.3)，对应 TIM5 1 ms
-            .period = 0.001f,
-        },
+        .can_handle = SHOOT_CAN_HANDLE,
+        .motor_type = SHOOT_FRIC_MOTOR_TYPE,
+        .reduction_ratio = SHOOT_FRIC_REDUCTION_RATIO,
+        .pid_velocity = SHOOT_FRIC_VELOCITY_PID,
     };
 
-    cfg_fric.motor_id = 1;
-    cfg_fric.direction = DJIM_DIRECTION_REVERT;
+    cfg_fric.motor_id = SHOOT_FRIC_LEFT_MOTOR_ID;
+    cfg_fric.direction = SHOOT_FRIC_LEFT_DIRECTION;
     motor_fric_l.init(cfg_fric);
 
-    cfg_fric.motor_id = 2;
-    cfg_fric.direction = DJIM_DIRECTION_NORMAL;
+    cfg_fric.motor_id = SHOOT_FRIC_RIGHT_MOTOR_ID;
+    cfg_fric.direction = SHOOT_FRIC_RIGHT_DIRECTION;
     motor_fric_r.init(cfg_fric);
 
     // 摩擦轮使能跟随射击指令，机构是否初始化由 SHOOT_INIT 控制。
@@ -68,27 +58,15 @@ void Shoot_Init(void)
     motor_fric_r.setEnable(shoot_cmd.enable);
     motor_fric_r.setVelocity(FRIC_SPEED_DEGS);
 
-    // 拨盘 M2006 (CAN2, ID3, REVERT, 减速比36)
+    // 拨盘
     DJIMotor::Config cfg_mag = {
-        .can_handle = &hcan2,
-        .motor_id = 3,
-        .motor_type = DJIMotor_2006,
-        .direction = DJIM_DIRECTION_REVERT,
-        .reduction_ratio = 36.0f,
-        .pid_angle = {
-            .kp = 0.0f, .ki = 0.0f, .kd = 0.0f,
-            .mode = PID::Mode::Position,
-            .features = PID::FeatureOutputLimit,
-            .output_min = -360.0f, .output_max = 360.0f,
-            .period = 0.001f,
-        },
-        .pid_velocity = {
-            .kp = 0.01f, .ki = 0.0f, .kd = 0.0f,
-            .mode = PID::Mode::Delta,
-            .features = PID::FeatureOutputLimit,
-            .output_min = -10.0f, .output_max = 10.0f,
-            .period = 0.001f,
-        },
+        .can_handle = SHOOT_CAN_HANDLE,
+        .motor_id = SHOOT_MAG_MOTOR_ID,
+        .motor_type = SHOOT_MAG_MOTOR_TYPE,
+        .direction = SHOOT_MAG_DIRECTION,
+        .reduction_ratio = SHOOT_MAG_REDUCTION_RATIO,
+        .pid_angle = SHOOT_MAG_POSITION_PID,
+        .pid_velocity = SHOOT_MAG_VELOCITY_PID,
     };
     motor_mag.init(cfg_mag);
     motor_mag.setEnable(1);
@@ -96,7 +74,7 @@ void Shoot_Init(void)
     // 创建 RTOS 任务
     const osThreadAttr_t attr = {
         .name = "Shoot",
-        .stack_size = 512,
+        .stack_size = SHOOT_TASK_STACK_BYTES,
         .priority = osPriorityNormal,
     };
     osThreadNew(Shoot_Task, nullptr, &attr);

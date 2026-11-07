@@ -1,5 +1,4 @@
-#ifndef BSP_LOG_CONFIG_H
-#define BSP_LOG_CONFIG_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +36,4 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

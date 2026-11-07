@@ -1,5 +1,4 @@
-#ifndef ROBOT_H
-#define ROBOT_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C"
@@ -11,6 +10,4 @@ void Robot_Task(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

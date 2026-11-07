@@ -29,8 +29,6 @@ public:
         TIM_HandleTypeDef* tim_handle;     // 1kHz 定时器（注册先于 dji_motor）
     };
 
-    void init(const Config& config);   // 替代 ChassisMotion_Register
-
     // —— 底盘输入量 ——
     float theta_ = 0.0f;   // 底盘朝向角度 (rad)
     float v_ = 0.0f;       // 移动速度 (m/s)
@@ -40,12 +38,19 @@ public:
     ChassisVelocity velocity_;   // [2] 速度环+功率
 
 private:
-    void update();                          // 替代 ChassisMotion_Update
-    static void timCallback(void* device);  // 替代 ChassisMotion_TimHandler
-
     /* 运动学参数 */
     float move_scale_ = 0.0f;    // 移动缩放因子
     float rotate_scale_ = 0.0f;  // 旋转缩放因子
 
     TIM tim_;   // 1kHz 定时器
+
+    // —— static 函数 ——
+    static void timCallback(void* device);  // 替代 ChassisMotion_TimHandler
+
+public:
+    // —— 实例函数 ——
+    void init(const Config& config);   // 替代 ChassisMotion_Register
+
+private:
+    void update();                          // 替代 ChassisMotion_Update
 };

@@ -129,6 +129,18 @@ private:
     static uint8_t idx_;
 
     // —— static 函数 ——
+public:
+#if ROBOT_RTT_PRINT && (ROBOT_RTT_REPORT_MOTOR_DETAIL || ROBOT_RTT_REPORT_CLEAR_ERROR)
+    static const char* stateName(State state);
+#endif
+    static uint8_t isFaultState(State state)
+    {
+        return state == State::MotorUnrecognized || state == State::OutputShaftUnrecognized ||
+               state == State::OffsetReadError || state == State::EncoderReadError ||
+               static_cast<uint8_t>(state) >= 0x8u;
+    }
+
+private:
     static void decodeCallback(void* device);
     static void loseCallback(void* device);
     static void timCallback(void* device);
@@ -146,17 +158,8 @@ public:
 #else
     void clearError();
 #endif
-#if ROBOT_RTT_PRINT && (ROBOT_RTT_REPORT_MOTOR_DETAIL || ROBOT_RTT_REPORT_CLEAR_ERROR)
-    static const char* stateName(State state);
-#endif
     void setZero();
     uint8_t running() const { return state_ == State::Running ? 1u : 0u; }
-    static uint8_t isFaultState(State state)
-    {
-        return state == State::MotorUnrecognized || state == State::OutputShaftUnrecognized ||
-               state == State::OffsetReadError || state == State::EncoderReadError ||
-               static_cast<uint8_t>(state) >= 0x8u;
-    }
     uint8_t faulted() const
     {
         return isFaultState(state_);
