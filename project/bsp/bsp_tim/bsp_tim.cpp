@@ -7,18 +7,22 @@
 namespace {
 
 bool onApb2(TIM_TypeDef* tim) {
-    return tim == TIM1 || tim == TIM8 || tim == TIM9 || tim == TIM10 || tim == TIM11;
+    // F1/F4 的有效 TIM 实例按 APB 地址区分，不枚举具体型号拥有的定时器。
+    return reinterpret_cast<uintptr_t>(tim) >= APB2PERIPH_BASE;
 }
 
 uint32_t kernelClock(TIM_TypeDef* tim) {
+    RCC_ClkInitTypeDef clocks{};
+    uint32_t flash_latency;
+    HAL_RCC_GetClockConfig(&clocks, &flash_latency);
     if (onApb2(tim)) {
         uint32_t pclk = HAL_RCC_GetPCLK2Freq();
-        if ((RCC->CFGR & RCC_CFGR_PPRE2) != RCC_CFGR_PPRE2_DIV1)
+        if (clocks.APB2CLKDivider != RCC_HCLK_DIV1)
             pclk *= 2u;
         return pclk;
     }
     uint32_t pclk = HAL_RCC_GetPCLK1Freq();
-    if ((RCC->CFGR & RCC_CFGR_PPRE1) != RCC_CFGR_PPRE1_DIV1)
+    if (clocks.APB1CLKDivider != RCC_HCLK_DIV1)
         pclk *= 2u;
     return pclk;
 }

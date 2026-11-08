@@ -22,7 +22,15 @@ static void lost(void* ptr) { ++*static_cast<unsigned*>(ptr); }
 
 static void testTim() {
     CHECK(TIM::updatePeriodUs(&htim5) == 2000);
+    for (auto* instance : {TIM2, TIM3, TIM4, TIM5, TIM6, TIM7, TIM12, TIM13, TIM14}) {
+        TIM_HandleTypeDef timer{instance, {167, 999, 0}};
+        CHECK(TIM::updatePeriodUs(&timer) == 2000);
+    }
 #ifdef TEST_H7
+    for (auto* instance : {TIM23, TIM24}) {
+        TIM_HandleTypeDef timer{instance, {167, 999, 0}};
+        CHECK(TIM::updatePeriodUs(&timer) == 2000);
+    }
     const auto apb2_timers = {TIM1, TIM8, TIM15, TIM16, TIM17};
 #else
     const auto apb2_timers = {TIM1, TIM8, TIM9, TIM10, TIM11};
@@ -37,6 +45,13 @@ static void testTim() {
     TIM_HandleTypeDef apb2{TIM1, {167, 999, 0}};
     CHECK(TIM::updatePeriodUs(&apb2) == 2000);
     apb2.Init.RepetitionCounter = 1;
+    CHECK(TIM::updatePeriodUs(&apb2) == 4000);
+    // The two APB dividers are independent: exercise both mixed configurations.
+    RCC->CFGR = 0x8000u; RCC->D2CFGR = 0x400u;
+    CHECK(TIM::updatePeriodUs(&htim5) == 4000);
+    CHECK(TIM::updatePeriodUs(&apb2) == 2000);
+    RCC->CFGR = 0x1000u; RCC->D2CFGR = 0x50u;
+    CHECK(TIM::updatePeriodUs(&htim5) == 2000);
     CHECK(TIM::updatePeriodUs(&apb2) == 4000);
     CHECK(TIM::updatePeriodUs(nullptr) == 0);
     apb2.Instance = nullptr;
