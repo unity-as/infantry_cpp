@@ -6,7 +6,6 @@
 #include "cmd.h"
 #include "config.h"
 #include <math.h>
-#include "cmsis_os2.h"
 #include "vt13.h"
 #include "minipc_comm.h"
 #include "gimbal.h"
@@ -144,8 +143,8 @@ void Cmd_Mouse(void)
         float yaw_delta   = -MOUSE_GIMBAL_YAW_SCALE   * vt13_data->mouse_x;
         float pitch_delta = -MOUSE_GIMBAL_PITCH_SCALE * vt13_data->mouse_y;
 
-        // Cmd 每拍 osDelay(1)：目标累加速率不超过位置环输出的速度限幅。
-        const float period_s = 1.0f / static_cast<float>(osKernelGetTickFreq());
+        // Cmd 默认 1 ms 一拍，单次角度增量由位置环速度限幅换算。
+        constexpr float period_s = 0.001f;
         yaw_delta = fminf(fmaxf(yaw_delta, GIMBAL_YAW_POSITION_PID.output_min * period_s),
                          GIMBAL_YAW_POSITION_PID.output_max * period_s);
         pitch_delta = fminf(fmaxf(pitch_delta, GIMBAL_PITCH_POSITION_PID.output_min * period_s),
