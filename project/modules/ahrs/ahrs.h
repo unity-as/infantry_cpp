@@ -8,7 +8,7 @@
 #pragma once
 
 #include "bmi088.h"
-#include "kalman_filter.h"
+#include "kalman_filter.hpp"
 #include "bsp_dwt.h"
 #include "imu_temp.h"
 

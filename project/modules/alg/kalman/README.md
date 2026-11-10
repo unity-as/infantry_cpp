@@ -1,8 +1,8 @@
 # 通用 KF / EKF（当前实现）
 
 `KalmanFilter<n,m>` 只负责矩阵递推，维数由调用方在编译期提供，支持 `m > n`。
-类声明在 [kalman_filter.h](kalman_filter.h)，模板成员定义在 [kalman_filter.cpp](kalman_filter.cpp)；
-头文件包含实现，不维护显式实例化清单。矩阵复用 `Matrixf`，无堆、HAL、RTOS 或传感器依赖。
+类声明与模板成员定义统一放在 [kalman_filter.hpp](kalman_filter.hpp)，使用时直接包含该头文件，
+不维护独立 `.cpp` 或显式实例化清单。矩阵复用 `Matrixf`，无堆、HAL、RTOS 或传感器依赖。
 
 ## 职责与接口
 

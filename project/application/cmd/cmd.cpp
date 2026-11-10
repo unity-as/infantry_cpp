@@ -81,7 +81,7 @@ static void Cmd_AutoAim(void)
     Gimbal_AutoAim(Minipc_GetData()->yaw, -Minipc_GetData()->pitch);
 }
 
-static uint8_t shoot_test = 0;
+static uint16_t shoot_test = 0;
 
 void Cmd_Remote(void)
 {
@@ -103,9 +103,13 @@ void Cmd_Remote(void)
     last_aim = aim;
 
     // 左手 → 底盘（vx 前进 / vy 横移）
-    float vx =  REMOTE_CHASSIS_V_SCALE * VT13_RC_LV();
-    float vy = -REMOTE_CHASSIS_V_SCALE * VT13_RC_LH();
-    float v   = sqrtf(vx*vx + vy*vy);
+    float vx =  VT13_RC_LV();
+    float vy = -VT13_RC_LH();
+    // 中心偏移长度按单轴满偏量限幅，避免斜向移动超过配置移速。
+    float offset = sqrtf(vx*vx + vy*vy);
+    const float max_offset = VT13_RC_CH_MAX - VT13_RC_CH_MID;
+    if (offset > max_offset) offset = max_offset;
+    float v = REMOTE_CHASSIS_V_SCALE * offset;
     float dir = atan2f(vy, vx) + Gimbal_GetYaw()*M_PI/180.0f;
     chassis_cmd.v = v;
     chassis_cmd.theta = dir;
@@ -117,7 +121,7 @@ void Cmd_Remote(void)
     if (shoot_test > 0) shoot_test--;
     if (VT13_RC_TRIGGER() && !shoot_test) {
         if (!aim || Minipc_GetData()->can_fire) {
-            shoot_test = SHOOT_PERIOD_MS;
+            shoot_test = MAG_MS_PER_ROUND;
             Shoot_Fire(1);
         }
     }
@@ -139,14 +143,21 @@ void Cmd_Mouse(void)
         float yaw_delta   = -MOUSE_GIMBAL_YAW_SCALE   * vt13_data->mouse_x;
         float pitch_delta = -MOUSE_GIMBAL_PITCH_SCALE * vt13_data->mouse_y;
 
+        // Cmd 默认 1 ms 一拍，单次角度增量由位置环速度限幅换算。
+        yaw_delta = fminf(fmaxf(yaw_delta, GIMBAL_YAW_POSITION_PID.output_min * 0.001f),
+                         GIMBAL_YAW_POSITION_PID.output_max * 0.001f);
+        pitch_delta = fminf(fmaxf(pitch_delta, GIMBAL_PITCH_POSITION_PID.output_min * 0.001f),
+                           GIMBAL_PITCH_POSITION_PID.output_max * 0.001f);
+
         Gimbal_Set_Increment_Setpoint(yaw_delta, pitch_delta);
     }
 
     last_aim_m = aim_m;
 
     // 键盘 → 底盘（W/S 前进后退, A/D 横移；对角归一化 × 移速）
-    float vx = (float)(VT13_KEY_PRESSED(VT13_KEY_D) - VT13_KEY_PRESSED(VT13_KEY_A));
-    float vy = (float)(VT13_KEY_PRESSED(VT13_KEY_W) - VT13_KEY_PRESSED(VT13_KEY_S));
+    // 按键接口返回无符号位掩码，先转为 0/1，避免相减下溢及不同按键权重。
+    float vx = (float)((VT13_KEY_PRESSED(VT13_KEY_D) != 0) - (VT13_KEY_PRESSED(VT13_KEY_A) != 0));
+    float vy = (float)((VT13_KEY_PRESSED(VT13_KEY_W) != 0) - (VT13_KEY_PRESSED(VT13_KEY_S) != 0));
     float v   = sqrtf(vx*vx + vy*vy);
     if (vx != 0.0f && vy != 0.0f)
         v /= 1.4142f;   // 对角归一化
@@ -162,7 +173,7 @@ void Cmd_Mouse(void)
     if (shoot_test > 0) shoot_test--;
     if (VT13_MOUSE_LEFT_PRESSED() && !shoot_test) {
         if (!aim_m || Minipc_GetData()->can_fire) {
-            shoot_test = SHOOT_PERIOD_MS;
+            shoot_test = MAG_MS_PER_ROUND;
             Shoot_Fire(1);
         }
     }
@@ -198,15 +209,6 @@ void Cmd_Task(void)
     gimbal_cmd.enable  = en;
     chassis_cmd.enable = en;
     shoot_cmd.enable   = en;
-
-    // 底盘功率决策：缓冲能量大于配置阈值时放开，否则按裁判功率与能量余量计算
-    float limit = (referee_data->power_heat.buffer_energy > CHASSIS_BUFFER_RELEASE_J) ?
-                0.0f                                                  // 放开（limit<=0 不限流）
-                :
-                (float)referee_data->robot_status.chassis_power_limit
-                + CHASSIS_POWER_MARGIN_W - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
-
-    Chassis_SetPowerLimit(limit);
 
     // RGB: 缓冲能量指示 —— 满→蓝 / 绿随能量减弱 / 红随能量增强
     float buffer_energy = (float)referee_data->power_heat.buffer_energy;   // J

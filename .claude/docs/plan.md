@@ -12,6 +12,7 @@
 | 自瞄协议、符号与门控 | [自瞄](impl/aim.md) |
 | 发射状态机 | [发射](../../project/application/shoot/README.md) |
 | AHRS / KF / PID | [AHRS](../../project/modules/ahrs/README.md) · [KF/EKF](../../project/modules/alg/kalman/README.md) · [PID](../../project/modules/alg/pid/README.md) |
+| RLS 参数估计 | [RLS](../../project/modules/alg/rls/README.md) |
 | 遥控接收 | [VT13](../../project/modules/vt13/README.md) · [DT7](../../project/modules/dt7/README.md) |
 | 电机 | [DJI](../../project/modules/motor/dji_motor/README.md) · [达妙](../../project/modules/motor/dm_motor/README.md) |
 | 通信与计时 | [Serial](../../project/modules/serial/README.md) · [Daemon](../../project/modules/daemon/README.md) · [DWT](../../project/bsp/bsp_dwt/README.md) |

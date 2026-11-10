@@ -26,5 +26,4 @@ extern Chassis_Cmd chassis_cmd;
 
 void Chassis_Init(void);
 void Chassis_SetMode(Chassis_Mode mode);
-void Chassis_SetPowerLimit(float limit);
 float Chassis_GetPower(void);

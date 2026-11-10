@@ -19,8 +19,8 @@
 
 | 执行位置 | 职责与出口 |
 |---|---|
-| Cmd_Task | 读取 VT13、小电脑、裁判和 AHRS；写 `chassis_cmd/gimbal_cmd/shoot_cmd`，调用云台目标接口、`Shoot_Fire` 和底盘功率接口 |
-| Chassis_Task | 搬运移动指令、四轮使能，按模式计算旋转指令 |
+| Cmd_Task | 读取 VT13、小电脑、裁判和 AHRS；写 `chassis_cmd/gimbal_cmd/shoot_cmd`，调用云台目标接口和 `Shoot_Fire` |
+| Chassis_Task | 根据裁判缓存决策并更新底盘功率上限；搬运移动指令、四轮使能，按模式计算旋转指令 |
 | Gimbal_Task | 同步重新使能时的目标，再向 core 更新使能状态 |
 | Shoot_Task | 摩擦轮/拨盘使能和按时计数的拨盘状态机 |
 | 控制定时器回调 | 云台位置/速度环，底盘运动学、外置速度环及功率限制，DJI 指令发送 |
