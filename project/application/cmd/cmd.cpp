@@ -103,9 +103,13 @@ void Cmd_Remote(void)
     last_aim = aim;
 
     // 左手 → 底盘（vx 前进 / vy 横移）
-    float vx =  REMOTE_CHASSIS_V_SCALE * VT13_RC_LV();
-    float vy = -REMOTE_CHASSIS_V_SCALE * VT13_RC_LH();
-    float v   = sqrtf(vx*vx + vy*vy);
+    float vx =  VT13_RC_LV();
+    float vy = -VT13_RC_LH();
+    // 中心偏移长度按单轴满偏量限幅，避免斜向移动超过配置移速。
+    float offset = sqrtf(vx*vx + vy*vy);
+    const float max_offset = VT13_RC_CH_MAX - VT13_RC_CH_MID;
+    if (offset > max_offset) offset = max_offset;
+    float v = REMOTE_CHASSIS_V_SCALE * offset;
     float dir = atan2f(vy, vx) + Gimbal_GetYaw()*M_PI/180.0f;
     chassis_cmd.v = v;
     chassis_cmd.theta = dir;

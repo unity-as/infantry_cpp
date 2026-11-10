@@ -30,7 +30,7 @@
 // ======= 操作手感 =======
 #define REMOTE_GIMBAL_YAW_MAX_DEG_S   200.0f
 #define REMOTE_GIMBAL_PITCH_MAX_DEG_S 100.0f
-#define REMOTE_CHASSIS_V_MAX_MPS      1.5f
+#define REMOTE_CHASSIS_V_MAX_MPS      2.0f
 #define REMOTE_CHASSIS_W_MAX_REV      1.5f  // 圈/s
 #define KEYBOARD_CHASSIS_V_MPS        1.5f
 #define MOUSE_GIMBAL_YAW_SCALE        0.001f
