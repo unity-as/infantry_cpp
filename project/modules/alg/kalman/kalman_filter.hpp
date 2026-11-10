@@ -54,6 +54,11 @@ public:
     template <uint16_t _h_cols>
     bool updateEKF(const Matrixf<_m, 1>& z, const Matrixf<_m, 1>& predicted_measurement,
                    const Matrixf<_m, _h_cols>& H, const Matrixf<_m, _m>& R);
+    /// NIS=r^T(HPH^T+R)^-1*r；预测后、更新前调用。r=z-h(x)，奇异时返回 -1。
+    /// H 可为完整矩阵，或仅存前 _h_cols 个非零列；门限与观测取舍由调用方负责。
+    template <uint16_t _h_cols>
+    float chiSquare(const Matrixf<_m, 1>& innovation,
+                    const Matrixf<_m, _h_cols>& H, const Matrixf<_m, _m>& R) const;
 };
 
 // ============================== 生命周期 ==============================
@@ -171,4 +176,18 @@ bool KalmanFilter<_n, _m>::updateEKF(const Matrixf<_m, 1>& z,
             correction[row][col] -= kh[row][col];
     P_ = correction * P_;
     return true;
+}
+
+// ============================== 新息统计量 ==============================
+
+template <int _n, int _m>
+template <uint16_t _h_cols>
+float KalmanFilter<_n, _m>::chiSquare(const Matrixf<_m, 1>& innovation,
+                                     const Matrixf<_m, _h_cols>& H,
+                                     const Matrixf<_m, _m>& R) const {
+    static_assert(_h_cols > 0 && _h_cols <= _n, "H 列数必须在状态维数范围内");
+    const Matrixf<_m, _m> S = H * P_.template block<_h_cols, _h_cols>(0, 0) * H.trans() + R;
+    const Matrixf<_m, _m> S_inv = S.inv();
+    if (S_inv == Matrixf<_m, _m>::zeros()) return -1.0f;
+    return (innovation.trans() * S_inv * innovation)[0][0];
 }
