@@ -9,12 +9,9 @@
 #include <math.h>
 #include "dji_motor.h"
 #include "pid.h"
+#include "chassis_power.h"
 
 #define CHASSIS_WHEEL_NUM 4
-
-// Kt(0.3 N·m/A, 输出轴) × π/180；P(W)=系数×I_q(A)×velocity(输出轴deg/s)
-#define CHASSIS_POWER_COEF 0.005236f
-#define CHASSIS_GET_POWER(motor)  fmaxf(0.0f, CHASSIS_POWER_COEF * (motor)->current_ * (motor)->velocity_)
 
 class ChassisVelocity {
 public:
@@ -27,6 +24,7 @@ public:
         uint8_t motor_id_rr;            // 右后轮电机ID
         float reduction_ratio;          // 减速比
         PID::Config pid_velocity;       // 位置式速度环 PID 配置（四轮共用）
+        ChassisPower::Config power;
     };
 
 private:
@@ -35,9 +33,8 @@ private:
     PID pid_velocity_[CHASSIS_WHEEL_NUM];      // 四轮外置速度环（位置式）
     float target_omega_[CHASSIS_WHEEL_NUM] = {};  // 本周期目标速度 (deg/s, 输出轴)
     float current_raw_[CHASSIS_WHEEL_NUM] = {};   // 本周期速度环输出 I_raw (A)
-    float power_limit_ = 0.0f;                 // 功率上限 (W)：<=0 不限流
-    float power_total_ = 0.0f;                 // 实测总功率 (W)，供监测
-    float scale_ = 1.0f;                       // 当前缩放比 k（1=未限流）
+    ChassisPower power_;
+    float power_total_ = 0.0f;                 // 超电实测功率或模型估算值，W
     uint8_t enable_ = 0;                       // 使能：0=速度环不跑、PID 复位、输出 0 电流
 
 public:
