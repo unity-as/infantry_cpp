@@ -10,7 +10,7 @@
 | SPI | [bsp_spi.h](../../project/bsp/bsp_spi/bsp_spi.h) | 软件片选、轮询传输 |
 | DWT | [bsp_dwt.h](../../project/bsp/bsp_dwt/bsp_dwt.h) | [计时说明](../../project/bsp/bsp_dwt/README.md) |
 | PID | [pid.h](../../project/modules/alg/pid/pid.h) | [时间单位、功能与边界](../../project/modules/alg/pid/README.md) |
-| KF / EKF | [kalman_filter.h](../../project/modules/alg/kalman/kalman_filter.h) | [模型与递推职责](../../project/modules/alg/kalman/README.md) |
+| KF / EKF | [kalman_filter.hpp](../../project/modules/alg/kalman/kalman_filter.hpp) | [模型与递推职责](../../project/modules/alg/kalman/README.md) |
 | AHRS | [ahrs.h](../../project/modules/ahrs/ahrs.h) | [初始化、安装角与六轴模型](../../project/modules/ahrs/README.md) |
 | DJI / 达妙 | [DJI](../../project/modules/motor/dji_motor/dji_motor.h)、[达妙](../../project/modules/motor/dm_motor/dm_motor.h) | [DJI 行为](../../project/modules/motor/dji_motor/README.md)、[达妙行为](../../project/modules/motor/dm_motor/README.md) |
 | VT13 / DT7 | [VT13](../../project/modules/vt13/README.md)、[DT7](../../project/modules/dt7/README.md) | 自由函数接收模块，各自说明 UART 和首帧在线条件 |

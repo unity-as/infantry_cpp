@@ -2,15 +2,22 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
+## KF / RLS 整合为模板头文件（2026-11-10）
+
+- 基线为步兵 `ab7b3ee`、`leg_main` 的 `1da3c0e`。将 KF、RLS 的声明与模板成员定义分别合入 `.hpp`，删除原 `.h/.cpp` 和实现保护宏，更新实际调用者、测试入口及文档链接。逐字对照原 `.cpp` 确认两库模板成员定义未变；两边 KF 头文件逐字节一致。`leg_main` 原有 35 个修改或未跟踪文件的 SHA-256 均未改变。
+- 复用 `leg_main/tools/tests/kalman_filter_test.cpp`，分别链接两工程各自的真实 CMSIS-DSP 标量源码，在 `-O0/-O2` 下各通过 3728262 项检查：每次覆盖 5400 组随机更新、40000 拍递推，状态和协方差相对原运算顺序的缩放误差均为 0。两边 KF 的 `(1,1)`、`(2,3)`、`(9,7)` 显式类实例化及两翻译单元链接运行通过。
+- RLS 主机回归 89254 项检查通过；两翻译单元链接运行、重复包含以及 Cortex-M4 / hard-float 的 1、2、3、10、17 参数显式实例化通过。三个新 `.hpp` 使用各自工程编译数据库执行 `clangd --check`，均为 0 errors。
+- 两工程现有 Debug 工作区 ARM 构建通过：步兵 FLASH 118948 B、RAM 80768 B；`leg_main` FLASH 180916 B、RAM_D1 69552 B。后者包含其原有工作区改动，仅说明该工作区构建成功。本轮日志和临时检查源码保存在忽略目录 `build/template-hpp-check/`；未烧录，未验证实车行为或编辑器当前进程的诊断刷新。
+
 ## KF / RLS 的 clangd 包含诊断（2026-11-10）
 
 - 在 `0b8ec6c` 基线上，使用本机 clangd 和现有编译数据库，分别检查 KF、RLS 的 `.cpp`，均复现 `pp_including_mainfile_in_preamble`：实现文件经头文件再次包含自身，clangd 在预编译阶段拒绝该路径；不能据 ARM 编译通过认定编辑器诊断已通过。
-- [KF 头文件](../../project/modules/alg/kalman/kalman_filter.h)与 [RLS 头文件](../../project/modules/alg/rls/rls.h)末尾增加实现宏条件：当前 `.cpp` 已开始展开时跳过再次包含它。两者模板算法及实现文件均未修改。
+- [KF 头文件](../../project/modules/alg/kalman/kalman_filter.hpp)与 [RLS 头文件](../../project/modules/alg/rls/rls.hpp)末尾增加实现宏条件：当前 `.cpp` 已开始展开时跳过再次包含它。两者模板算法及实现文件均未修改。
 - 修改后，两份 `.cpp` 的 `clangd --check` 均为 0 errors；ARM 固件构建通过，RLS 独立主机回归 89254 项检查通过。诊断及构建输出保存在忽略目录 `build/rls-tests/`；本轮未烧录，未验证编辑器当前进程是否已刷新诊断。
 
 ## RLS 通用库移植（2026-11-10）
 
-- 移植前本项目基线为 `c6c2e98`，移植来源为 `leg_main/codex/rls` 的 `e4b09f5e8102dadf89f7a079b4828839cd530874`。本轮增加 [RLS 模块](../../project/modules/alg/rls/rls.h) 和 [独立主机测试](../../tools/tests/rls_test.cpp)；初版 `334ce22` 使用 `.hpp`，随后按用户要求整理为与 KF 一致的 `.h` 声明、`.cpp` 定义并由头文件包含。逐字对照确认模板函数体未变，测试源码与来源仅有头文件名适配。接口、语义、已知数值限制及复现命令以 [模块说明](../../project/modules/alg/rls/README.md)为准。
+- 移植前本项目基线为 `c6c2e98`，移植来源为 `leg_main/codex/rls` 的 `e4b09f5e8102dadf89f7a079b4828839cd530874`。本轮增加 [RLS 模块](../../project/modules/alg/rls/rls.hpp) 和 [独立主机测试](../../tools/tests/rls_test.cpp)；初版 `334ce22` 使用 `.hpp`，随后按用户要求整理为与 KF 一致的 `.h` 声明、`.cpp` 定义并由头文件包含。逐字对照确认模板函数体未变，测试源码与来源仅有头文件名适配。接口、语义、已知数值限制及复现命令以 [模块说明](../../project/modules/alg/rls/README.md)为准。
 - GCC C++20 `-O2 -Wall -Wextra -Werror` 主机测试全部 89254 项检查通过；Clang `-fsanitize=undefined -fsanitize-trap=undefined` 同样全部通过。与独立 double 信息矩阵批量解对照参数和协方差，覆盖一次/多次方程、遗忘、收敛与变化跟踪、非法数据、重置、整组回滚、溢出保护和连续 20000 拍更新。主机 `sizeof(RLS<10>)` 为 968 字节。
 - Cortex-M4 / hard-float ARM GCC 对 1、2、3、10、17 参数显式实例化全部成员编译通过，未在目标板执行。主机两翻译单元重复使用 `RLS<2>` 的链接与运行通过；0、-1、65536 参数均按维数断言拒绝编译。临时检查源码与产物位于忽略目录 `build/rls-compile-check/`，核心主机回归长期维护在上述测试源码。
 - 本项目 Debug ARM 固件构建通过，CMake 自动收集模块文件及 include 目录，无构建配置修改；FLASH 118948 B、RAM 80768 B。当前应用没有实例化或调用 RLS，整车构建通过不能单独证明模板实现有效，上述显式实例化与主机检查提供对应软件证据。
