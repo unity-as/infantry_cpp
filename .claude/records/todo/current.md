@@ -13,7 +13,7 @@
 | 小陀螺变速 | [方案](../../plans/little_top.md)，当前只有枚举和零旋转占位 |
 | 磁力计融合 | [方案边界](../../plans/magnetometer.md)，当前固定六轴，不能靠开关启用 |
 | 消息总线解耦 | [方案边界](../../plans/msg_bus.md)，尚未实施；旧动态分配方案与禁堆约束冲突 |
-| 底盘/云台速度环力矩前馈、RLS 分配 | 仅设计意向，见 [前馈方案](../../plans/feedforward.md#其他设计意向)；[RLS 移植核对](../../plans/feedforward.md#rls-功率模型移植核对2026-11-10)已记录参考错误、leg_main 对照及输入缺口，无已接受的实现安排 |
+| 底盘/云台速度环力矩前馈、RLS 分配 | [通用 RLS 库](../../../project/modules/alg/rls/README.md)已移植；功率在线辨识与电流分配仍未接入，输入缺口及参考错误见 [RLS 移植核对](../../plans/feedforward.md#rls-功率模型移植核对2026-11-10)，其他前馈见 [方案](../../plans/feedforward.md#其他设计意向) |
 
 ## 规范与行为待决定
 

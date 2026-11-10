@@ -2,6 +2,14 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
+## RLS 通用库移植（2026-11-10）
+
+- 移植前本项目基线为 `c6c2e98`，移植来源为 `leg_main/codex/rls` 的 `e4b09f5e8102dadf89f7a079b4828839cd530874`。本轮增加 [rls.hpp](../../project/modules/alg/rls/rls.hpp) 和 [独立主机测试](../../tools/tests/rls_test.cpp)；文件形式与类声明布局按步兵项目规范适配。逐字对照确认模板函数体未变，测试源码仅替换 include 文件名。接口、语义、已知数值限制及复现命令以 [模块说明](../../project/modules/alg/rls/README.md)为准。
+- GCC C++20 `-O2 -Wall -Wextra -Werror` 主机测试全部 89254 项检查通过；Clang `-fsanitize=undefined -fsanitize-trap=undefined` 同样全部通过。与独立 double 信息矩阵批量解对照参数和协方差，覆盖一次/多次方程、遗忘、收敛与变化跟踪、非法数据、重置、整组回滚、溢出保护和连续 20000 拍更新。主机 `sizeof(RLS<10>)` 为 968 字节。
+- Cortex-M4 / hard-float ARM GCC 对 1、2、3、10、17 参数显式实例化全部成员编译通过，未在目标板执行。主机两翻译单元重复使用 `RLS<2>` 的链接与运行通过；0、-1、65536 参数均按维数断言拒绝编译。临时检查源码与产物位于忽略目录 `build/rls-compile-check/`，核心主机回归长期维护在上述测试源码。
+- 本项目 Debug ARM 固件构建通过，CMake 自动收集新 `.hpp` 及 include 目录，无构建配置修改；FLASH 118948 B、RAM 80768 B。当前应用没有实例化或调用 RLS，整车构建通过不能单独证明模板实现有效，上述显式实例化与主机检查提供对应软件证据。
+- 本轮未修改 `leg_main` 或 RM2024 参考源码，未接入在线辨识和电流分配，未烧录。Cortex-M4 实测更新耗时、低激励退化工况及实车辨识效果未验证；采样缺口见 [移植核对](../plans/feedforward.md#当前采样缺口与实施边界)。
+
 ## 发射机构启用与烧录（2026-11-08）
 
 - 源码基线为 `3ccc055`，分支为 `codex/enable-shooter`；本次唯一源码改动是 [config.h](../../project/application/config.h) 的 `SHOOT_INIT` 从 0 改为 1，恢复摩擦轮、拨盘及射击任务初始化。
