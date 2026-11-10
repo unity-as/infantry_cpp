@@ -11,6 +11,14 @@
 - 控制定时器回调读取 AHRS 角度/角速度，按配置分频更新位置环，两种模式共用速度环及驱动输出。
 - `Gimbal_Task` 消费 `gimbal_cmd.enable`；重新使能时先同步姿态目标、清速度目标，再使能 core。任务用 `osDelay(1)` 让出调度。
 
+## 手动鼠标目标
+
+[Cmd_Mouse](../cmd/cmd.cpp) 将鼠标缓存乘整车配置中的两轴比例，经 `Gimbal_Set_Increment_Setpoint()` 执行 `target_next = target_previous + mouse_delta`，再由 core 限制目标角。这里累加在旧目标上，不以当前实角为基准；鼠标归零后不再增加目标，云台继续追踪该目标。
+
+[图传协议资料](../../../.claude/reference/videotransmission.md)将 X/Y 字段定义为鼠标移动速度。当前 Cmd 按任务调用节奏持续读取最近缓存，没有按 `vt13_data_flag` 限定只处理新帧；这是按周期累加速度类输入，不能直接按“每帧位移被重复消费”判错。比例包含现有调用节奏的影响，实际任务间隔和接收延迟仍需实测。
+
+已有的 `Gimbal_Set_Increment()` / `Gimbal::setIncrement()` 则执行“当前 AHRS 角度 + 增量”，手动鼠标当前未调用它。用户提出的目标基准调整与停手保持问题见 [鼠标位置目标方案](../../../.claude/plans/feedforward.md#鼠标位置目标方案)；该方案尚未实施。
+
 ## pitch 双重限位
 
 AHRS 限位约束姿态目标，电机角限位约束相对编码器零位的机械位置，两组独立配置，单位为度。当前两种 pitch 角采用相同正方向。
