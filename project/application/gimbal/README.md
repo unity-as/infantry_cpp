@@ -17,7 +17,7 @@
 
 [图传协议资料](../../../.claude/reference/videotransmission.md)将 X/Y 字段定义为鼠标移动速度。当前 Cmd 按任务调用节奏持续读取最近缓存，没有按 `vt13_data_flag` 限定只处理新帧；这是按周期累加速度类输入，不能直接按“每帧位移被重复消费”判错。比例包含现有调用节奏的影响，实际任务间隔和接收延迟仍需实测。
 
-已有的 `Gimbal_Set_Increment()` / `Gimbal::setIncrement()` 则执行“当前 AHRS 角度 + 增量”，手动鼠标当前未调用它。用户提出的目标基准调整与停手保持问题见 [鼠标位置目标方案](../../../.claude/plans/feedforward.md#鼠标位置目标方案)；该方案尚未实施。
+已有的 `Gimbal_Set_Increment()` / `Gimbal::setIncrement()` 则执行“当前 AHRS 角度 + 增量”，手动鼠标当前未调用它。
 
 ## pitch 双重限位
 
