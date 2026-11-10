@@ -1,13 +1,13 @@
 # RLS 参数估计
 
-通用线性参数估计 `y = phi^T p`，接口与数组布局见 [rls.h](rls.h)。移植来源为 `leg_main` 的 `codex/rls` 分支提交 `e4b09f5e8102dadf89f7a079b4828839cd530874`，保留估计公式和失败处理语义。与本项目 KF 一致，类声明放在 `.h`，模板成员定义放在 [rls.cpp](rls.cpp)，由头文件末尾包含；`.cpp` 有包含保护，也可由构建系统单独编译，不维护固定维数实例化清单。单独编译 `.cpp` 时先定义实现保护宏，头文件据此跳过再次包含当前 `.cpp`，避免 clangd 的预编译递归诊断。声明按 [C++ 规范](../../../../.claude/docs/cpp/cpp_conventions.md#实例类成员排列)排列。模块无堆分配，不依赖机器人、HAL、RTOS 或矩阵库。
+通用线性参数估计 `y = phi^T p`，接口与数组布局见 [rls.hpp](rls.hpp)。移植来源为 `leg_main` 的 `codex/rls` 分支提交 `e4b09f5e8102dadf89f7a079b4828839cd530874`，保留估计公式和失败处理语义。类声明与模板成员定义统一放在 `rls.hpp`，使用时直接包含，不维护独立 `.cpp` 或固定维数实例化清单。声明按 [C++ 规范](../../../../.claude/docs/cpp/cpp_conventions.md#实例类成员排列)排列。模块无堆分配，不依赖机器人、HAL、RTOS 或矩阵库。
 
 ## 使用与状态
 
 `RLS<参数数>` 在编译期确定实例大小。参数、协方差及更新暂存区归对象持有；长期对象使用全局或静态存储，同一对象不支持并发调用。
 
 ```cpp
-#include "rls.h"
+#include "rls.hpp"
 
 static RLS<2> estimator;
 
