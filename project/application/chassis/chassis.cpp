@@ -6,6 +6,7 @@
 #include "config.h"
 #include "chassis_motion.h"
 #include "cmsis_os2.h"
+#include "referee.h"
 #include <math.h>
 
 Chassis_Cmd chassis_cmd;
@@ -15,6 +16,15 @@ static void Chassis_Task(void *arg)
 {
     (void)arg;
     for (;;) {
+        const referee_info_t* referee_data = Referee_GetData();
+        // 缓冲能量大于配置阈值时放开，否则按裁判功率与能量余量计算。
+        float limit = (referee_data->power_heat.buffer_energy > CHASSIS_BUFFER_RELEASE_J) ?
+                    0.0f  // 放开（limit<=0 不限流）
+                    :
+                    (float)referee_data->robot_status.chassis_power_limit
+                    + CHASSIS_POWER_MARGIN_W - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
+        chassis_inst.velocity_.setPowerLimit(limit);
+
         chassis_inst.velocity_.setEnable(chassis_cmd.enable);
         chassis_inst.v_ = chassis_cmd.v;
         chassis_inst.theta_ = chassis_cmd.theta;
@@ -85,11 +95,6 @@ void Chassis_SetMode(Chassis_Mode mode)
     if (mode == CHASSIS_MODE_NO_ROTATION && chassis_cmd.mode != CHASSIS_MODE_NO_ROTATION)
         chassis_cmd.w_rot = 0.0f;
     chassis_cmd.mode = mode;
-}
-
-void Chassis_SetPowerLimit(float limit)
-{
-    chassis_inst.velocity_.setPowerLimit(limit);
 }
 
 float Chassis_GetPower(void)

@@ -204,15 +204,6 @@ void Cmd_Task(void)
     chassis_cmd.enable = en;
     shoot_cmd.enable   = en;
 
-    // 底盘功率决策：缓冲能量大于配置阈值时放开，否则按裁判功率与能量余量计算
-    float limit = (referee_data->power_heat.buffer_energy > CHASSIS_BUFFER_RELEASE_J) ?
-                0.0f                                                  // 放开（limit<=0 不限流）
-                :
-                (float)referee_data->robot_status.chassis_power_limit
-                + CHASSIS_POWER_MARGIN_W - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
-
-    Chassis_SetPowerLimit(limit);
-
     // RGB: 缓冲能量指示 —— 满→蓝 / 绿随能量减弱 / 红随能量增强
     float buffer_energy = (float)referee_data->power_heat.buffer_energy;   // J
     float ratio = buffer_energy / CHASSIS_BUFFER_MAX_J;   // 0~1
