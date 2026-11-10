@@ -13,9 +13,11 @@
 
 ## 手动鼠标目标
 
-[Cmd_Mouse](../cmd/cmd.cpp) 将鼠标缓存乘整车配置中的两轴比例，经 `Gimbal_Set_Increment_Setpoint()` 执行 `target_next = target_previous + mouse_delta`，再由 core 限制目标角。这里累加在旧目标上，不以当前实角为基准；鼠标归零后不再增加目标，云台继续追踪该目标。
+[Cmd_Mouse](../cmd/cmd.cpp) 将鼠标缓存乘整车配置中的两轴比例，再将单次角度增量限制到“对应位置环速度输出上下限 × 一个 RTOS tick 的秒数”，经 `Gimbal_Set_Increment_Setpoint()` 执行 `target_next = target_previous + limited_mouse_delta`，最后由 core 限制目标角。速度预算直接复用 [config.h](../config.h) 的两轴位置 PID 输出限幅，没有另设鼠标最高速度。这里累加在旧目标上，不以当前实角为基准；鼠标归零后不再增加目标，云台继续追踪该目标。
 
 [图传协议资料](../../../.claude/reference/videotransmission.md)将 X/Y 字段定义为鼠标移动速度。当前 Cmd 按任务调用节奏持续读取最近缓存，没有按 `vt13_data_flag` 限定只处理新帧；这是按周期累加速度类输入，不能直接按“每帧位移被重复消费”判错。比例包含现有调用节奏的影响，实际任务间隔和接收延迟仍需实测。
+
+单次预算按 [Robot 任务](../../../Core/Src/freertos.c) 的 `osDelay(1)` 和运行时 `osKernelGetTickFreq()` 换算，不使用位置环的分频更新周期；任务延迟时不补发多拍角度。该限制约束目标增长速度，不保证实角达到相同速度，也不限制目标领先实角的总量。遥控摇杆和自瞄不经过这段鼠标增量限幅。
 
 已有的 `Gimbal_Set_Increment()` / `Gimbal::setIncrement()` 则执行“当前 AHRS 角度 + 增量”，手动鼠标当前未调用它。
 
