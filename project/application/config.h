@@ -53,8 +53,8 @@
 #define GIMBAL_YAW_ECD        (60*8192.0f/360.0f)
 #define GIMBAL_PITCH_ECD      1948.0f  // 底盘水平、AHRS pitch=0 时的原始 ECD
 
-// 姿态角限幅（deg）；yaw 上下限相等时不启用该限幅
-#define GIMBAL_YAW_AHRS_MIN     0.0f  // min=max 时不启用 yaw 角限幅
+// 姿态角限幅（deg）；yaw 上下限均为 0 时不启用该限幅
+#define GIMBAL_YAW_AHRS_MIN     0.0f
 #define GIMBAL_YAW_AHRS_MAX     0.0f
 #define GIMBAL_PITCH_AHRS_MIN  -30.7f
 #define GIMBAL_PITCH_AHRS_MAX   10.5f
