@@ -1,13 +1,13 @@
 # RLS 参数估计
 
-通用线性参数估计 `y = phi^T p`，接口与数组布局见 [rls.hpp](rls.hpp)。移植来源为 `leg_main` 的 `codex/rls` 分支提交 `e4b09f5e8102dadf89f7a079b4828839cd530874`，保留估计公式和失败处理语义；本项目按纯模板约定合并为 `.hpp`，按 [C++ 规范](../../../../.claude/docs/cpp/cpp_conventions.md#实例类成员排列)排列声明。模块无堆分配，不依赖机器人、HAL、RTOS 或矩阵库。
+通用线性参数估计 `y = phi^T p`，接口与数组布局见 [rls.h](rls.h)。移植来源为 `leg_main` 的 `codex/rls` 分支提交 `e4b09f5e8102dadf89f7a079b4828839cd530874`，保留估计公式和失败处理语义。与本项目 KF 一致，类声明放在 `.h`，模板成员定义放在 [rls.cpp](rls.cpp)，由头文件末尾包含；`.cpp` 有包含保护，也可由构建系统单独编译，不维护固定维数实例化清单。声明按 [C++ 规范](../../../../.claude/docs/cpp/cpp_conventions.md#实例类成员排列)排列。模块无堆分配，不依赖机器人、HAL、RTOS 或矩阵库。
 
 ## 使用与状态
 
 `RLS<参数数>` 在编译期确定实例大小。参数、协方差及更新暂存区归对象持有；长期对象使用全局或静态存储，同一对象不支持并发调用。
 
 ```cpp
-#include "rls.hpp"
+#include "rls.h"
 
 static RLS<2> estimator;
 
@@ -50,4 +50,4 @@ g++ -std=c++20 -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti -I project/mo
 ./build/rls-tests/rls_test.exe
 ```
 
-[测试源码](../../../../tools/tests/rls_test.cpp)同样来自上述提交，仅适配头文件名。测试以独立 double 信息矩阵的批量解对照参数及协方差，覆盖单/多方程遗忘、收敛与参数变化跟踪、预测、非法配置与输入、整组失败回滚、重置、不同维数、溢出保护及连续 20000 拍更新。模板编译与本项目验证结果统一见 [移植验证记录](../../../../.claude/records/validation.md#rls-通用库移植2026-11-10)。
+[测试源码](../../../../tools/tests/rls_test.cpp)与上述移植来源一致。测试以独立 double 信息矩阵的批量解对照参数及协方差，覆盖单/多方程遗忘、收敛与参数变化跟踪、预测、非法配置与输入、整组失败回滚、重置、不同维数、溢出保护及连续 20000 拍更新。模板编译与本项目验证结果统一见 [移植验证记录](../../../../.claude/records/validation.md#rls-通用库移植2026-11-10)。

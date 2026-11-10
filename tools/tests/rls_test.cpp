@@ -1,5 +1,5 @@
 /** @file rls_test.cpp @brief 主机 RLS 单测；独立信息矩阵解作为数值基准。 */
-#include "rls.hpp"
+#include "rls.h"
 
 #include <float.h>
 #include <math.h>
