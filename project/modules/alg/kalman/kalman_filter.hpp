@@ -54,7 +54,11 @@ public:
     template <uint16_t _h_cols>
     bool updateEKF(const Matrixf<_m, 1>& z, const Matrixf<_m, 1>& predicted_measurement,
                    const Matrixf<_m, _h_cols>& H, const Matrixf<_m, _m>& R);
-    float chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H);       ///< 卡方检验
+    /// NIS=r^T(HPH^T+R)^-1*r；预测后、更新前调用。r=z-h(x)，奇异时返回 -1。
+    /// H 可为完整矩阵，或仅存前 _h_cols 个非零列；门限与观测取舍由调用方负责。
+    template <uint16_t _h_cols>
+    float chiSquare(const Matrixf<_m, 1>& innovation,
+                    const Matrixf<_m, _h_cols>& H, const Matrixf<_m, _m>& R) const;
 };
 
 // ============================== 生命周期 ==============================
@@ -62,22 +66,7 @@ public:
 template <int _n, int _m>
 void KalmanFilter<_n, _m>::init(const Config& config) {
     lambda_ = (config.lambda > 0.0f && config.lambda <= 1.0f) ? config.lambda : 1.0f;
-
-    // 注：C 版误用 mat_zero(x, n) 清零 n×n，越界写入 x 之后的 30 个 float；
-    //     此处只清 _n 个（保持“x 清零”本意，消除越界）。
-    if (config.x_init) {
-        for (int i = 0; i < _n; i++) x_[i][0] = config.x_init[i];
-    } else {
-        x_ = Matrixf<_n, 1>::zeros();
-    }
-
-    if (config.P_init) {
-        for (int r = 0; r < _n; r++)
-            for (int c = 0; c < _n; c++)
-                P_[r][c] = config.P_init[r * _n + c];
-    } else {
-        P_ = Matrixf<_n, _n>::eye();
-    }
+    reset(config.x_init, config.P_init);
 }
 
 template <int _n, int _m>
@@ -189,18 +178,16 @@ bool KalmanFilter<_n, _m>::updateEKF(const Matrixf<_m, 1>& z,
     return true;
 }
 
-// ============================== 卡方检验 ==============================
+// ============================== 新息统计量 ==============================
 
 template <int _n, int _m>
-float KalmanFilter<_n, _m>::chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H) {
-    // y = z - H × x
-    Matrixf<_m, 1> y = z - H * x_;
-    // S = H × P × H^T
-    Matrixf<_m, _m> S = H * P_ * H.trans();
-    // S^(-1)
-    Matrixf<_m, _m> S_inv = S.inv();
+template <uint16_t _h_cols>
+float KalmanFilter<_n, _m>::chiSquare(const Matrixf<_m, 1>& innovation,
+                                     const Matrixf<_m, _h_cols>& H,
+                                     const Matrixf<_m, _m>& R) const {
+    static_assert(_h_cols > 0 && _h_cols <= _n, "H 列数必须在状态维数范围内");
+    const Matrixf<_m, _m> S = H * P_.template block<_h_cols, _h_cols>(0, 0) * H.trans() + R;
+    const Matrixf<_m, _m> S_inv = S.inv();
     if (S_inv == Matrixf<_m, _m>::zeros()) return -1.0f;
-    // y^T × S^(-1) × y
-    Matrixf<1, 1> chi = y.trans() * S_inv * y;
-    return chi[0][0];
+    return (innovation.trans() * S_inv * innovation)[0][0];
 }
