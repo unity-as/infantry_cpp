@@ -50,7 +50,15 @@
 | SPI1 | PA7(MOSI)/PB3(SCK)/PB4(MISO) | BMI088 IMU | ahrs |
 | I2C3 | PA8(SCL)/PC9(SDA) | IST8310 磁力计（预留） | 驱动保留，未接入 AHRS |
 | TIM5 | — | 电机控制、RGB PWM 与 Daemon 时基；周期见下方定时器表 | bsp_tim / rgb_led |
-| ADC3 | PF10(IN8) | 母线电压（功率监测） | power |
+| ADC3 | PF10(IN8) | 母线电压采样 | power |
+
+## 底盘功率采样条件
+
+2026-11-10 用户确认：车上尚无可反馈底盘实际功率的采样点，也未配置独立的电压、电流采样板；主控板自身已经读取母线电压。当前 [power 模块](../../project/modules/power/power.h)通过 ADC3/PF10 分压采样，由 `Power_GetBusVoltage()` 返回母线电压；本次未重新测量采样精度或刷新周期。
+
+母线电压本身不能给出底盘输入功率，还需要同一底盘供电边界的电流测量。DJI 电机反馈的转矩电流不等同于母线输入电流，不能直接把四轮反馈电流之和乘母线电压当作独立实测功率。当前 [裁判载荷](../../project/modules/referee/referee_protocol.h)的 `power_heat_data_t` 将相关位置定义为 `reserved1/2/3`，不能当作已接入的功率观测。
+
+这项硬件缺口对 RLS 在线辨识的影响见 [RLS 移植核对](../plans/feedforward.md#rls-功率模型移植核对2026-11-10)。
 
 ## 时钟树与定时器
 
