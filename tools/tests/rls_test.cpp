@@ -14,7 +14,7 @@ static bool near(double actual, double expected, double tolerance = 2e-4) {
     return isfinite(actual) && fabs(actual - expected) <= tolerance * (1.0 + fabs(expected));
 }
 
-// 独立求逆：Gauss-Jordan，不复用生产 RLS 的秩一更新。
+// 独立求逆：Gauss-Jordan，不复用生产 RLS 的 QR 更新。
 static void inverse3(const double matrix[3][3], double inverse[3][3]) {
     double augmented[3][6] = {};
     for (int i = 0; i < 3; ++i) {
@@ -146,7 +146,7 @@ static void invalidInputsAndRollback() {
     group[4] = 0.0f;
     observations[1] = INFINITY;
     CHECK(!rls.update(group, observations, 2));
-    // 输入有限，但第二行会使协方差数值坍缩；同样整组回滚。
+    // 输入有限，但第二行超出可表示的因子/协方差范围；同样整组回滚。
     group[3] = FLT_MAX;
     observations[1] = 0.0f;
     CHECK(!rls.update(group, observations, 2));
@@ -189,7 +189,7 @@ static void capacityAndForgetting() {
     const float zero_phi[] = {0.0f, 0.0f, 0.0f};
     const float zero_y[] = {0.0f, 0.0f, 0.0f};
     CHECK(scalar.update(zero_phi, zero_y, 3));
-    CHECK(scalar.covarianceDiagonal(0) == 2.0f); // 一拍三行，只遗忘一次。
+    CHECK(near(scalar.covarianceDiagonal(0), 2.0f, 1e-6)); // 一拍三行，只遗忘一次。
     for (int tick = 0; tick < 126; ++tick) CHECK(scalar.update(zero_phi, zero_y, 1));
     const float covariance_before = scalar.covarianceDiagonal(0);
     CHECK(!scalar.update(zero_phi, zero_y, 1)); // 无激励时膨胀溢出，保留旧状态。
@@ -218,6 +218,64 @@ static void sustainedUpdates() {
     puts("PASS 20000 sustained updates with finite positive covariance diagonals");
 }
 
+static void largeScalarRegressors() {
+    const float magnitudes[] = {1e4f, 1e8f};
+    const int signs[] = {-1, 1};
+    for (float magnitude : magnitudes) {
+        for (int sign : signs) {
+            RLS<1> rls;
+            CHECK(rls.init({}));
+            const float phi = sign * magnitude;
+            const float y = 2.0f * phi;
+            CHECK(rls.update(&phi, &y, 1));
+            const double expected_covariance = 1.0 / (1.0 + static_cast<double>(phi) * phi);
+            CHECK(fabs(rls.covarianceDiagonal(0) / expected_covariance - 1.0) < 2e-6);
+            CHECK(near(rls.parameters()[0], 2.0 * (1.0 - expected_covariance), 2e-6));
+        }
+    }
+    puts("PASS large signed scalar regressors without covariance subtraction collapse");
+}
+
+static void scaledAndCorrelatedRegressors(bool correlated) {
+    RLS<2> rls;
+    const float lambda = 0.995f;
+    const float diagonal[] = {correlated ? 100.0f : 1e-8f, correlated ? 100.0f : 1e6f};
+    CHECK(rls.init({lambda, nullptr, diagonal}));
+    double a = 1.0 / diagonal[0], b = 0.0, d = 1.0 / diagonal[1];
+    double u = 0.0, v = 0.0;
+    double max_parameter_error = 0.0, max_covariance_error = 0.0;
+    for (int tick = 0; tick < 4000; ++tick) {
+        float phi[2];
+        phi[0] = correlated ? 1.0f : static_cast<float>(1e4 * sin(tick * 0.17));
+        phi[1] = correlated ? static_cast<float>(1.0 + 0.01 * sin(tick * 0.31))
+                            : static_cast<float>(1e-3 * cos(tick * 0.37));
+        const float y = correlated ? 1.2f * phi[0] - 0.7f * phi[1]
+                                   : 1e-4f * phi[0] + 1e3f * phi[1];
+        a = lambda * a + static_cast<double>(phi[0]) * phi[0];
+        b = lambda * b + static_cast<double>(phi[0]) * phi[1];
+        d = lambda * d + static_cast<double>(phi[1]) * phi[1];
+        u = lambda * u + static_cast<double>(phi[0]) * y;
+        v = lambda * v + static_cast<double>(phi[1]) * y;
+        const double determinant = a * d - b * b;
+        CHECK(determinant > 0.0);
+        CHECK(rls.update(phi, &y, 1));
+        const double expected[] = {(d * u - b * v) / determinant,
+                                   (a * v - b * u) / determinant};
+        const double covariance[] = {d / determinant, a / determinant};
+        for (uint16_t i = 0; i < 2; ++i) {
+            const double parameter_error = fabs(rls.parameters()[i] - expected[i]) / (1 + fabs(expected[i]));
+            const double covariance_error = fabs(rls.covarianceDiagonal(i) / covariance[i] - 1.0);
+            max_parameter_error = fmax(max_parameter_error, parameter_error);
+            max_covariance_error = fmax(max_covariance_error, covariance_error);
+            CHECK(parameter_error < 2e-4);
+            CHECK(covariance_error < 2e-4);
+        }
+    }
+    printf("PASS %s: max scaled parameter error %.3g, relative covariance error %.3g\n",
+           correlated ? "correlated regressors" : "regressors spanning 7 orders of magnitude",
+           max_parameter_error, max_covariance_error);
+}
+
 int main() {
     static_assert(sizeof(RLS<1>) < sizeof(RLS<3>));
     static_assert(sizeof(RLS<3>) < sizeof(RLS<10>));
@@ -228,6 +286,9 @@ int main() {
     invalidInputsAndRollback();
     capacityAndForgetting();
     sustainedUpdates();
+    largeScalarRegressors();
+    scaledAndCorrelatedRegressors(false);
+    scaledAndCorrelatedRegressors(true);
     printf("PASS all RLS tests (%u checks); sizeof(RLS<10>)=%zu bytes\n", checks, sizeof(RLS<10>));
     return 0;
 }
