@@ -61,4 +61,7 @@ private:
     void commit();
 };
 
+// 单独编译实现文件时，不再次包含正在展开的 .cpp（也避免 clangd 的预编译递归诊断）。
+#ifndef RLS_TEMPLATE_IMPLEMENTATION
 #include "rls.cpp"
+#endif

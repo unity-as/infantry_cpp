@@ -2,6 +2,12 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
+## KF / RLS 的 clangd 包含诊断（2026-11-10）
+
+- 在 `0b8ec6c` 基线上，使用本机 clangd 和现有编译数据库，分别检查 KF、RLS 的 `.cpp`，均复现 `pp_including_mainfile_in_preamble`：实现文件经头文件再次包含自身，clangd 在预编译阶段拒绝该路径；不能据 ARM 编译通过认定编辑器诊断已通过。
+- [KF 头文件](../../project/modules/alg/kalman/kalman_filter.h)与 [RLS 头文件](../../project/modules/alg/rls/rls.h)末尾增加实现宏条件：当前 `.cpp` 已开始展开时跳过再次包含它。两者模板算法及实现文件均未修改。
+- 修改后，两份 `.cpp` 的 `clangd --check` 均为 0 errors；ARM 固件构建通过，RLS 独立主机回归 89254 项检查通过。诊断及构建输出保存在忽略目录 `build/rls-tests/`；本轮未烧录，未验证编辑器当前进程是否已刷新诊断。
+
 ## RLS 通用库移植（2026-11-10）
 
 - 移植前本项目基线为 `c6c2e98`，移植来源为 `leg_main/codex/rls` 的 `e4b09f5e8102dadf89f7a079b4828839cd530874`。本轮增加 [RLS 模块](../../project/modules/alg/rls/rls.h) 和 [独立主机测试](../../tools/tests/rls_test.cpp)；初版 `334ce22` 使用 `.hpp`，随后按用户要求整理为与 KF 一致的 `.h` 声明、`.cpp` 定义并由头文件包含。逐字对照确认模板函数体未变，测试源码与来源仅有头文件名适配。接口、语义、已知数值限制及复现命令以 [模块说明](../../project/modules/alg/rls/README.md)为准。

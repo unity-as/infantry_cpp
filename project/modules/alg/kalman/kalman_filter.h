@@ -57,4 +57,7 @@ public:
     float chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H);       ///< 卡方检验
 };
 
+// 单独编译实现文件时，不再次包含正在展开的 .cpp（也避免 clangd 的预编译递归诊断）。
+#ifndef KALMAN_FILTER_TEMPLATE_IMPLEMENTATION
 #include "kalman_filter.cpp"
+#endif

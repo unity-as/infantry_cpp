@@ -2,7 +2,7 @@
 
 `KalmanFilter<n,m>` 只负责矩阵递推，维数由调用方在编译期提供，支持 `m > n`。
 类声明在 [kalman_filter.h](kalman_filter.h)，模板成员定义在 [kalman_filter.cpp](kalman_filter.cpp)；
-头文件包含实现，不维护显式实例化清单。矩阵复用 `Matrixf`，无堆、HAL、RTOS 或传感器依赖。
+头文件在未定义实现保护宏时包含实现，不维护显式实例化清单。单独编译 `.cpp` 时先定义该宏，使头文件跳过再次包含当前 `.cpp`，避免 clangd 的预编译递归诊断。矩阵复用 `Matrixf`，无堆、HAL、RTOS 或传感器依赖。
 
 ## 职责与接口
 
