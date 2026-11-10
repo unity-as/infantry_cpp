@@ -2,6 +2,14 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
+## RLS 职责精简（2026-11-11）
+
+- 基线 `1e48983`，分支 `codex/power-management`。按用户要求精简通用 RLS，当前职责与调用前提见 [模块说明](../../project/modules/alg/rls/README.md)；下节的整组回滚与异常返回是基线版本的历史行为。
+- 验证假设：移除事务备份和逐步异常检查后，有效输入仍符合原加权最小二乘目标。GCC `-O2` 和 Clang `-O2 -fsanitize=undefined -fsanitize-trap=undefined` 各通过 103668 项检查；独立 double 信息矩阵对照、非零先验、单/多行遗忘、变化跟踪、17 参数及连续 20000 拍测试均通过，大尺度和近相关输入误差与精简前一致，原数值误差门槛未放宽。
+- 测试同步移除非法配置、坏样本、溢出拒绝与回滚契约，保留并补全有效重置、参数别名、重置保留遗忘因子和重新初始化配置验证。主机 `sizeof(RLS<10>)` 从 1008 B 降至 524 B。
+- Cortex-M4 / hard-float 的 1、2、3、10、17 参数显式实例化通过，开启 `-Wdouble-promotion -Werror`；产物在忽略目录 `build/rls-core-check/`。`cmake --build build` 成功返回 `no work to do`，因为应用尚未实例化该模板，不将其算作新增 QR 代码的编译证据。
+- 未修改 KF、matrix、相邻工程或原有三处用户注释；未烧录，板端耗时和实车辨识未验证。
+
 ## 纯单精度 QR-RLS（2026-11-11）
 
 - 基线 `44c47d8`，分支 `codex/power-management`。用户授权将通用 RLS 从协方差型改为增量 QR 型；接口、先验、单次调用遗忘一次及整组失败回滚由 [RLS 模块](../../project/modules/alg/rls/README.md)说明。未修改相邻 `leg_main` 或开源参考快照，原有三处未提交注释改动保留。
