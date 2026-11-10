@@ -88,7 +88,7 @@
 #define SHOOT_MAG_REDUCTION_RATIO  36.0f
 #define FRIC_SPEED_DEGS            2500.0f  // 输出轴 deg/s
 #define MAG_CAPACITY               8        // 发/圈
-#define SHOOT_PERIOD_MS            64
+#define SHOOT_FREQ_HZ              15.625f  // 发/s
 
 #ifdef __cplusplus
 #include "pid.h"

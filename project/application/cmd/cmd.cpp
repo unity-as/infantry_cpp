@@ -81,7 +81,7 @@ static void Cmd_AutoAim(void)
     Gimbal_AutoAim(Minipc_GetData()->yaw, -Minipc_GetData()->pitch);
 }
 
-static uint8_t shoot_test = 0;
+static uint16_t shoot_test = 0;
 
 void Cmd_Remote(void)
 {
@@ -121,7 +121,7 @@ void Cmd_Remote(void)
     if (shoot_test > 0) shoot_test--;
     if (VT13_RC_TRIGGER() && !shoot_test) {
         if (!aim || Minipc_GetData()->can_fire) {
-            shoot_test = SHOOT_PERIOD_MS;
+            shoot_test = MAG_MS_PER_ROUND;
             Shoot_Fire(1);
         }
     }
@@ -173,7 +173,7 @@ void Cmd_Mouse(void)
     if (shoot_test > 0) shoot_test--;
     if (VT13_MOUSE_LEFT_PRESSED() && !shoot_test) {
         if (!aim_m || Minipc_GetData()->can_fire) {
-            shoot_test = SHOOT_PERIOD_MS;
+            shoot_test = MAG_MS_PER_ROUND;
             Shoot_Fire(1);
         }
     }
