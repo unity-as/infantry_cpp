@@ -50,7 +50,6 @@
 #define CHASSIS_REDUCTION_RATIO   DJIM_REDUCTION_RATIO_M3508
 #define CHASSIS_FOLLOW_PERIOD_DEG 90.0f
 #define CHASSIS_FOLLOW_GAIN       0.2f  // yaw 误差 deg → 底盘角速度 rad/s
-#define CHASSIS_BACK_CALC_COEF    0.00007f  // 每拍电流差 → 积分回灌量（误差·s/A）
 
 // ======= 底盘缓冲能量与功率决策 =======
 #define CHASSIS_BUFFER_MAX_J       60.0f  // RGB 归一化与功率计算共用

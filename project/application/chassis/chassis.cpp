@@ -75,7 +75,6 @@ void Chassis_Init(void)
             .motor_id_rr = CHASSIS_MOTOR_ID_RR,
             .reduction_ratio = CHASSIS_REDUCTION_RATIO,
             .pid_velocity = CHASSIS_WHEEL_VELOCITY_PID,
-            .back_calc_coef = CHASSIS_BACK_CALC_COEF,
         },
         .tim_handle = ROBOT_MOTOR_TIM_HANDLE, // 速度环与功率计算时基；注册顺序由 Robot_Init 决定
     };

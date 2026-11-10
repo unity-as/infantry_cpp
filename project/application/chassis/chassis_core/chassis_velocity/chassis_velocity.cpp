@@ -1,24 +1,12 @@
 /**
  * @file    chassis_velocity.cpp
  * @brief   底盘四轮速度环 + 功率控制（C → C++）
- * @note    从 C 版 chassis_velocity 迁移，逻辑不变，禁堆。
+ * @note    从 C 版 chassis_velocity 迁移，功率限流后的积分反算由 PID 模块处理，禁堆。
  */
 #include "chassis_velocity.h"
 
-// 反算抗饱和：功率控制限幅后回灌积分，integral -= (1-scale)*I_raw*coef
-void ChassisVelocity::backCalc(float scale)
-{
-    if (scale >= 1.0f) return;   // 未限流，无需反算
-
-    for (int i = 0; i < CHASSIS_WHEEL_NUM; i++) {
-        float back = (1.0f - scale) * current_raw_[i] * back_calc_coef_;
-        pid_velocity_[i].setIntegral(pid_velocity_[i].integral_ - back);
-    }
-}
-
 void ChassisVelocity::init(const Config& config)
 {
-    back_calc_coef_ = config.back_calc_coef;
     power_limit_ = 0.0f;   // 默认不限流，应用层覆盖
     scale_ = 1.0f;
 
@@ -70,15 +58,15 @@ void ChassisVelocity::tick()
         if (scale < 0.0f) scale = 0.0f;
         scale_ = scale;
 
-        // 4. 限幅电流 + 发电流
-        for (int i = 0; i < CHASSIS_WHEEL_NUM; i++)
-            motor_[i].setCurrent(scale * current_raw_[i]);
-
-        // 5. 反算抗饱和
-        backCalc(scale);
+        // 4. 写入限流后的电流，并由 PID 内部处理积分反算
+        for (int i = 0; i < CHASSIS_WHEEL_NUM; i++) {
+            float limited_current = scale * current_raw_[i];
+            motor_[i].setCurrent(limited_current);
+            pid_velocity_[i].backCalcAntiWindup(limited_current);
+        }
     }
 
-    // 6. 实测总功率（监测）—— 不受使能影响，持续跑
+    // 5. 实测总功率（监测）—— 不受使能影响，持续跑
     power_total_ = CHASSIS_GET_POWER(&motor_[0])
                  + CHASSIS_GET_POWER(&motor_[1])
                  + CHASSIS_GET_POWER(&motor_[2])
