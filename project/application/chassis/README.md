@@ -8,6 +8,8 @@
 
 遥控左摇杆的中心偏移由 VT13 接口给出；cmd 将两轴偏移的合长度限制到单轴满偏量，再按整车配置的 `REMOTE_CHASSIS_V_MAX_MPS` 映射为移动速度。因此斜向满偏也不会超过该速度上限，方向仍由原始两轴偏移与云台角组合。
 
+键盘移动将 WASD 按键位掩码转换为 0/1 后计算方向：W/S 前后、A/D 左右，同轴相反键同时按下时抵消；斜向归一化后按 `KEYBOARD_CHASSIS_V_MPS` 输出移速，方向同样与云台角组合。
+
 `Chassis_Init()` 从 [config.h](../config.h) 组装几何、接线、速度环和积分回灌配置，初始化 motion，再创建 `Chassis_Task`。
 
 - RTOS 任务：更新四轮使能，搬运 v/theta，根据模式填写 w_rot。

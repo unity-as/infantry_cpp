@@ -149,8 +149,9 @@ void Cmd_Mouse(void)
     last_aim_m = aim_m;
 
     // 键盘 → 底盘（W/S 前进后退, A/D 横移；对角归一化 × 移速）
-    float vx = (float)(VT13_KEY_PRESSED(VT13_KEY_D) - VT13_KEY_PRESSED(VT13_KEY_A));
-    float vy = (float)(VT13_KEY_PRESSED(VT13_KEY_W) - VT13_KEY_PRESSED(VT13_KEY_S));
+    // 按键接口返回无符号位掩码，先转为 0/1，避免相减下溢及不同按键权重。
+    float vx = (float)((VT13_KEY_PRESSED(VT13_KEY_D) != 0) - (VT13_KEY_PRESSED(VT13_KEY_A) != 0));
+    float vy = (float)((VT13_KEY_PRESSED(VT13_KEY_W) != 0) - (VT13_KEY_PRESSED(VT13_KEY_S) != 0));
     float v   = sqrtf(vx*vx + vy*vy);
     if (vx != 0.0f && vy != 0.0f)
         v /= 1.4142f;   // 对角归一化
