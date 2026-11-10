@@ -144,11 +144,10 @@ void Cmd_Mouse(void)
         float pitch_delta = -MOUSE_GIMBAL_PITCH_SCALE * vt13_data->mouse_y;
 
         // Cmd 默认 1 ms 一拍，单次角度增量由位置环速度限幅换算。
-        constexpr float period_s = 0.001f;
-        yaw_delta = fminf(fmaxf(yaw_delta, GIMBAL_YAW_POSITION_PID.output_min * period_s),
-                         GIMBAL_YAW_POSITION_PID.output_max * period_s);
-        pitch_delta = fminf(fmaxf(pitch_delta, GIMBAL_PITCH_POSITION_PID.output_min * period_s),
-                           GIMBAL_PITCH_POSITION_PID.output_max * period_s);
+        yaw_delta = fminf(fmaxf(yaw_delta, GIMBAL_YAW_POSITION_PID.output_min * 0.001f),
+                         GIMBAL_YAW_POSITION_PID.output_max * 0.001f);
+        pitch_delta = fminf(fmaxf(pitch_delta, GIMBAL_PITCH_POSITION_PID.output_min * 0.001f),
+                           GIMBAL_PITCH_POSITION_PID.output_max * 0.001f);
 
         Gimbal_Set_Increment_Setpoint(yaw_delta, pitch_delta);
     }
