@@ -54,7 +54,6 @@ public:
     template <uint16_t _h_cols>
     bool updateEKF(const Matrixf<_m, 1>& z, const Matrixf<_m, 1>& predicted_measurement,
                    const Matrixf<_m, _h_cols>& H, const Matrixf<_m, _m>& R);
-    float chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H);       ///< 卡方检验
 };
 
 // ============================== 生命周期 ==============================
@@ -62,22 +61,7 @@ public:
 template <int _n, int _m>
 void KalmanFilter<_n, _m>::init(const Config& config) {
     lambda_ = (config.lambda > 0.0f && config.lambda <= 1.0f) ? config.lambda : 1.0f;
-
-    // 注：C 版误用 mat_zero(x, n) 清零 n×n，越界写入 x 之后的 30 个 float；
-    //     此处只清 _n 个（保持“x 清零”本意，消除越界）。
-    if (config.x_init) {
-        for (int i = 0; i < _n; i++) x_[i][0] = config.x_init[i];
-    } else {
-        x_ = Matrixf<_n, 1>::zeros();
-    }
-
-    if (config.P_init) {
-        for (int r = 0; r < _n; r++)
-            for (int c = 0; c < _n; c++)
-                P_[r][c] = config.P_init[r * _n + c];
-    } else {
-        P_ = Matrixf<_n, _n>::eye();
-    }
+    reset(config.x_init, config.P_init);
 }
 
 template <int _n, int _m>
@@ -187,20 +171,4 @@ bool KalmanFilter<_n, _m>::updateEKF(const Matrixf<_m, 1>& z,
             correction[row][col] -= kh[row][col];
     P_ = correction * P_;
     return true;
-}
-
-// ============================== 卡方检验 ==============================
-
-template <int _n, int _m>
-float KalmanFilter<_n, _m>::chiSquare(const Matrixf<_m, 1>& z, const Matrixf<_m, _n>& H) {
-    // y = z - H × x
-    Matrixf<_m, 1> y = z - H * x_;
-    // S = H × P × H^T
-    Matrixf<_m, _m> S = H * P_ * H.trans();
-    // S^(-1)
-    Matrixf<_m, _m> S_inv = S.inv();
-    if (S_inv == Matrixf<_m, _m>::zeros()) return -1.0f;
-    // y^T × S^(-1) × y
-    Matrixf<1, 1> chi = y.trans() * S_inv * y;
-    return chi[0][0];
 }

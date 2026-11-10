@@ -2,6 +2,12 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
+## 删除 Mahony 与精简 KF（2026-11-11）
+
+- 基线 `75eca0c`，分支 `codex/power-management`。按用户要求删除未使用的 Mahony 两个源文件，KF 初始化复用现有重置逻辑并移除无调用的 `chiSquare()`；当前接口见 [KF 模块](../../project/modules/alg/kalman/README.md)。保留 KF/PID 初始化时的配置默认处理、紧凑 H 更新及原有滤波公式，未同步修改相邻工程。
+- 验证范围为引用检查、初始化赋值逻辑对照及 Debug ARM 构建。删除前在 `project/`、`tools/` 和相关维护文档中未发现 Mahony 使用方或 `chiSquare()` 调用；CMake 自动检测文件删除并重新生成，`cmake --build build` 成功，FLASH 119120 B、RAM 80760 B。
+- 本次没有新增或重跑主机数值回归；未烧录、未做实车验证。原有三处用户注释改动保留且不纳入提交。
+
 ## RLS 职责精简（2026-11-11）
 
 - 基线 `1e48983`，分支 `codex/power-management`。按用户要求精简通用 RLS，当前职责与调用前提见 [模块说明](../../project/modules/alg/rls/README.md)；下节的整组回滚与异常返回是基线版本的历史行为。
