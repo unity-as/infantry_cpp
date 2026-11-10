@@ -6,16 +6,31 @@
 #include <vector>
 
 struct TIM_TypeDef {};
-inline TIM_TypeDef test_timers[18];
-#define TIM1 (&test_timers[1])
-#define TIM5 (&test_timers[5])
-#define TIM8 (&test_timers[8])
-#define TIM9 (&test_timers[9])
-#define TIM10 (&test_timers[10])
-#define TIM11 (&test_timers[11])
-#define TIM15 (&test_timers[15])
-#define TIM16 (&test_timers[16])
-#define TIM17 (&test_timers[17])
+// Match CMSIS peripheral addresses. Tests only compare these pointers, never dereference them.
+#define APB1PERIPH_BASE 0x40000000u
+#define APB2PERIPH_BASE 0x40010000u
+#define TIM2 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x0000u)
+#define TIM3 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x0400u)
+#define TIM4 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x0800u)
+#define TIM5 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x0C00u)
+#define TIM6 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x1000u)
+#define TIM7 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x1400u)
+#define TIM12 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x1800u)
+#define TIM13 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x1C00u)
+#define TIM14 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0x2000u)
+#define TIM1 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x0000u)
+#define TIM8 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x0400u)
+#ifdef TEST_H7
+#define TIM15 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x4000u)
+#define TIM16 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x4400u)
+#define TIM17 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x4800u)
+#define TIM23 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0xE000u)
+#define TIM24 reinterpret_cast<TIM_TypeDef*>(APB1PERIPH_BASE + 0xE400u)
+#else
+#define TIM9 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x4000u)
+#define TIM10 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x4400u)
+#define TIM11 reinterpret_cast<TIM_TypeDef*>(APB2PERIPH_BASE + 0x4800u)
+#endif
 struct TIM_Base_InitTypeDef {
     uint32_t Prescaler, Period, RepetitionCounter;
 };
@@ -24,7 +39,9 @@ struct TIM_HandleTypeDef {
     TIM_Base_InitTypeDef Init;
 };
 inline TIM_HandleTypeDef htim5{TIM5, {167, 999, 0}};
+#ifdef TEST_H7
 inline TIM_HandleTypeDef htim16{TIM16, {167, 999, 0}};
+#endif
 struct RCC_TypeDef { uint32_t CFGR, D2CFGR; };
 inline RCC_TypeDef test_rcc{0x1000u | 0x8000u, 0x50u | 0x400u}; // APB1 /4, APB2 /2.
 #define RCC (&test_rcc)
@@ -39,6 +56,20 @@ inline RCC_TypeDef test_rcc{0x1000u | 0x8000u, 0x50u | 0x400u}; // APB1 /4, APB2
 inline uint32_t test_pclk1 = 42000000u, test_pclk2 = 84000000u;
 inline uint32_t HAL_RCC_GetPCLK1Freq() { return test_pclk1; }
 inline uint32_t HAL_RCC_GetPCLK2Freq() { return test_pclk2; }
+#define RCC_HCLK_DIV1 0u
+#define RCC_APB1_DIV1 0u
+#define RCC_APB2_DIV1 0u
+struct RCC_ClkInitTypeDef { uint32_t APB1CLKDivider, APB2CLKDivider; };
+inline void HAL_RCC_GetClockConfig(RCC_ClkInitTypeDef* clocks, uint32_t* latency) {
+#ifdef TEST_H7
+    clocks->APB1CLKDivider = RCC->D2CFGR & RCC_D2CFGR_D2PPRE1;
+    clocks->APB2CLKDivider = RCC->D2CFGR & RCC_D2CFGR_D2PPRE2;
+#else
+    clocks->APB1CLKDivider = RCC->CFGR & RCC_CFGR_PPRE1;
+    clocks->APB2CLKDivider = (RCC->CFGR & RCC_CFGR_PPRE2) >> 3u;
+#endif
+    *latency = 0;
+}
 inline void HAL_TIM_Base_Start_IT(TIM_HandleTypeDef*) {}
 inline void HAL_TIM_Base_Stop_IT(TIM_HandleTypeDef*) {}
 
