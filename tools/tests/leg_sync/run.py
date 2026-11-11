@@ -27,7 +27,7 @@ def main():
     stubs.mkdir(parents=True, exist_ok=True)
     # Only hardware-facing dependencies are substituted. TIM, Daemon, Serial,
     # CRC, receivers, PID and both motor implementations are compiled unchanged.
-    for name in ("tim.h", "bsp_usart.h", "bsp_can.h", "bsp_fdcan.h", "bsp_dwt.h",
+    for name in ("tim.h", "bsp_usart.h", "bsp_can.h", "bsp_dwt.h",
                  "bsp_log.h", "bsp_log_config.h"):
         (stubs / name).write_text(
             '#include "' + (HERE / "hal_stubs.h").as_posix() + '"\n',

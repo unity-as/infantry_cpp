@@ -2,7 +2,7 @@
  * @file    dm_motor.cpp
  * @brief   达妙关节电机：解码 + 四模式组帧 + 管理命令 + TIM 心跳
  * @note    MIT/反馈手拼跨字节字段；0x100/0x200 为 float 小端。
- *          每实例 Config.htim 驱动 update；Daemon 共用同一时基。CAN。
+ *          每实例 Config.htim 驱动 update；Daemon 共用同一时基；经典 CAN。
  *          Config.mode 为初始 CTRL_MODE；运行期 requestMode() 由定时回调异步切换。
  *          失能态 update 发 DISABLE，不发控制帧。
  */

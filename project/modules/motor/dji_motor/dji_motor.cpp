@@ -133,7 +133,7 @@ void DJIMotor::loseCallback(void* device)
     instance->motor_valid_ = 0;  // 失联，标记通信无效（Update 会输出 0 电流）
 
     // 用于debug检查失联电机的can通道、型号和ID，确认是哪个电机失联了。
-    CAN_HandleTypeDef* channel = instance->djim_can_.can_handle_;
+    CAN::Handle* channel = instance->djim_can_.can_handle_;
     DJIMotor_Type type = instance->motor_type_;
     uint8_t id = instance->motor_id_;
 

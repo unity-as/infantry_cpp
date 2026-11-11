@@ -2,7 +2,7 @@
  * @file    dm_motor.h
  * @brief   达妙关节电机（位置 / 速度 / 电流 / MIT；电流 = MIT 纯 t_ff）
  * @note    壳子参考 DJIMotor（公开用户量 + private FeedbackRaw）；单位 rad、rad/s、N.m。
- *          本工程为 CAN（bsp_can），Config.can_handle 为 CAN_HandleTypeDef*。
+ *          通过 bsp_can 收发经典 CAN，Config.can_handle 为 CAN::Handle*。
  *          控制模式在 Config.mode 指定；运行期 requestMode() 由定时回调异步切换。
  *          setEnable(0) 已失能则不再发管理帧；失能态由所选定时器心跳持续发失能管理帧。
  *          setEnable(1) 发送使能管理帧后改发控制帧。电调因此在失能态仍持续回帧。
@@ -64,7 +64,7 @@ public:
 
     /// Config 按达妙协议，不强制与 DJI 字段一一对应
     struct Config {
-        CAN_HandleTypeDef* can_handle;
+        CAN::Handle* can_handle;
         uint32_t control_id;              ///< 控制帧基 ID（助手 CANID）
         uint32_t feedback_id;             ///< 反馈帧 ID（助手 MasterID）
         Mode mode = Mode::Current;        ///< 初始模式；init 写电调 CTRL_MODE

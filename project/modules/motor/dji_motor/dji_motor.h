@@ -36,7 +36,7 @@ public:
 
     /// 初始化配置
     struct Config {
-        CAN_HandleTypeDef* can_handle;  // CAN 句柄（&hcan1/2）
+        CAN::Handle* can_handle;       // 平台 CAN 句柄
         uint8_t motor_id;               // 电机 ID（1~8）
         DJIMotor_Type motor_type;       // 电机型号
         uint8_t direction;              // 方向：DJIM_DIRECTION_NORMAL / REVERT

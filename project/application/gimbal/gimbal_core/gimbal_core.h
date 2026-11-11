@@ -40,7 +40,7 @@ public:
     /// 初始化配置
     struct Config {
         AHRS* ahrs;
-        CAN_HandleTypeDef* can_handle;
+        CAN::Handle* can_handle;
         TIM_HandleTypeDef* htim;
         uint8_t motor_id_yaw;
         uint8_t motor_id_pitch;

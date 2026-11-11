@@ -125,6 +125,7 @@ struct TestTx {
 };
 class CAN {
 public:
+    using Handle = CAN_HandleTypeDef;
     using Callback = void (*)(void*);
     struct Config { CAN_HandleTypeDef* can_handle; uint32_t rx_id; };
     CAN_HandleTypeDef* can_handle_{};

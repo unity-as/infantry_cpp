@@ -1,6 +1,6 @@
 # DJI 电机
 
-通过本项目 `bsp_can` 经典 CAN 收发，保留源项目的 `DJIMotor` 接口。实例配置、公开量与发送组映射分别见 [dji_motor.h](dji_motor.h)、[dji_motor_def.h](dji_motor_def.h)。
+通过 [bsp_can](../../../bsp/bsp_can/README.md) 经典 CAN 接口收发，配置句柄使用 `CAN::Handle*`。实例配置、公开量与发送组映射分别见 [dji_motor.h](dji_motor.h)、[dji_motor_def.h](dji_motor_def.h)。
 
 - `angle_` / `velocity_` 为已除减速比、按方向变换后的用户量，单位 deg / deg/s；`current_` 为按方向变换的电流。速度直接使用本帧反馈，不再低通，也不再提供 `velocity_raw_` 或低通系数宏。底盘、云台、拨盘均会受此反馈变化影响，须实车复核噪声和控制稳定性。
 - `timbaseSelect()` 统一控制心跳，并给先注册的电机看门狗补绑时基；后注册的电机也沿用该时基。位置环分频相对于实际心跳，不能直接把源代码注释中的 1000 Hz 当成本板配置。
