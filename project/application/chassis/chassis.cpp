@@ -20,9 +20,7 @@ static void Chassis_Task(void *arg)
         float limit = CHASSIS_POWER_FALLBACK_W;
         const float referee_limit = referee_data->robot_status.chassis_power_limit;
         if (Referee_Online() && referee_limit > 0.0f) {
-            limit = referee_limit - CHASSIS_POWER_MARGIN_W
-                  + CHASSIS_BUFFER_GAIN_W_PER_J * (referee_data->power_heat.buffer_energy - CHASSIS_BUFFER_TARGET_J);
-            limit = fminf(referee_limit, fmaxf(0.0f, limit));
+            limit = fmaxf(0.0f, referee_limit - CHASSIS_POWER_MARGIN_W);
         }
         chassis_inst.velocity_.setPowerLimit(limit);
 

@@ -245,10 +245,8 @@ inline constexpr PID::Config CHASSIS_WHEEL_VELOCITY_PID = {
 #endif // __cplusplus
 
 // ======= 功率管理 =======
-// 缓冲满值用于 RGB 显示；预算为裁判上限减裕量，再按缓冲偏差调节，并限在 [0, 裁判上限]。
+// 缓冲能量只用于 RGB 显示；底盘预算为 max(0, 裁判上限 - 功率裕量)。
 #define CHASSIS_BUFFER_MAX_J       60.0f  // 缓冲满值（J）
-#define CHASSIS_BUFFER_TARGET_J    40.0f  // 缓冲调节目标（J）
-#define CHASSIS_BUFFER_GAIN_W_PER_J 1.0f   // 缓冲偏差到功率的增益（W/J）
 #define CHASSIS_POWER_MARGIN_W     10.0f  // 从裁判上限预留的功率（W）
 #define CHASSIS_POWER_FALLBACK_W   0.0f   // 裁判未在线/上限无效时预算；0 禁止驱动电流
 // Kt 沿用旧值；损耗初值参考 HKUST RM2024 PowerController.hpp，不是本车标定结果。
