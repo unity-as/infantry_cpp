@@ -2,6 +2,19 @@
 
 这里保存当次验证的版本、范围、用户反馈和缺口，不维护当前功能状态。活动事项见 [当前待办](todo/current.md)。
 
+## 底盘功率实车观察：用户反馈（2026-11-11）
+
+- 用户反馈已做实车测试，未观察到超功率迹象；车上尚无独立实测功率反馈，因此暂不认定限幅生效，不能据此判断模型预测误差或实际功率是否满足预算。
+- 本条记录用户观察，不代表本轮重新构建、烧录或采集了功率数据；具体测试工况、时长及对应板端产物未另行核对。前次构建与写入校验见下节，后续工作见 [当前待办](todo/current.md#功能待办)。
+
+## 固定功率裕量版构建与烧录（2026-11-11）
+
+- 基线 `ea72ac5`，分支 `codex/chassis-power-control`。按本轮确认去掉缓冲能量连续调节，当前预算和离线语义见 [底盘](../../project/application/chassis/README.md#应用预算)。保留用户原有三处注释改动，它们不改变固件行为、不纳入提交。
+- 验证目标为确认预算简化后功率分配回归不受影响、固件可构建且目标 Flash 与 ELF 一致。`python tools/tests/leg_sync/run.py --cases power` 通过 65038 项检查，`cmake --build build` 成功，FLASH 120152 B、RAM 80816 B；本轮没有重复完整模块回归。
+- 产物 `build/infantry.elf`，SHA-256 为 `3FE58B4C27CDAF592BB3239A96B7882C2ED05014026DE17208F34F88FCD7489A`。
+- 使用本机配置的 CMSIS-DAP、SWD 2000 kHz 和 `target/stm32f4x.cfg`，识别 Cortex-M4、设备 ID `0x10076413`、Flash 1024 KiB。执行 `openocd -f interface/cmsis-dap.cfg -f target/stm32f4x.cfg -c "program build/infantry.elf verify reset exit"`，返回码 0，日志明确给出 `Programming Finished`、`Verified OK` 和 `Resetting Target`；日志位于忽略目录 `build/power-flash-check/openocd.log`。
+- 写入及校验通过，不等同于启动流程、裁判在线、底盘运动或实测功率通过；上述实车行为及参考初值误差尚未验证。当前裁判离线回退仍为 0 W，超电实际通信和自动在线辨识尚未接入。
+
 ## 删除 Mahony 与精简 KF（2026-11-11）
 
 - 基线 `75eca0c`，分支 `codex/power-management`。按用户要求删除未使用的 Mahony 两个源文件，KF 初始化复用现有重置逻辑并移除无调用的 `chiSquare()`；当前接口见 [KF 模块](../../project/modules/alg/kalman/README.md)。保留 KF/PID 初始化时的配置默认处理、紧凑 H 更新及原有滤波公式，未同步修改相邻工程。

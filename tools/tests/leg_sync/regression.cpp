@@ -12,6 +12,9 @@
 #include <string>
 
 static unsigned checks = 0;
+#ifdef TEST_CHASSIS_POWER
+unsigned testChassisPower();
+#endif
 #define CHECK(expr) do { ++checks; if (!(expr)) { \
     std::cerr << __LINE__ << ": " << #expr << '\n'; std::exit(1); } } while (0)
 static bool near(float a, float b, float tol = 0.001f) { return std::fabs(a - b) < tol; }
@@ -361,6 +364,9 @@ int main(int argc, char** argv) {
     else if (name == "dt7") testDt7();
     else if (name == "dji") testDji();
     else if (name == "dm") testDm();
+#ifdef TEST_CHASSIS_POWER
+    else if (name == "power") checks += testChassisPower();
+#endif
     else return 2;
     std::cout << name << ": " << checks << " checks passed\n";
 }

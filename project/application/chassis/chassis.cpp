@@ -17,12 +17,11 @@ static void Chassis_Task(void *arg)
     (void)arg;
     for (;;) {
         const referee_info_t* referee_data = Referee_GetData();
-        // 缓冲能量大于配置阈值时放开，否则按裁判功率与能量余量计算。
-        float limit = (referee_data->power_heat.buffer_energy > CHASSIS_BUFFER_RELEASE_J) ?
-                    0.0f  // 放开（limit<=0 不限流）
-                    :
-                    (float)referee_data->robot_status.chassis_power_limit
-                    + CHASSIS_POWER_MARGIN_W - (CHASSIS_BUFFER_MAX_J - referee_data->power_heat.buffer_energy);
+        float limit = CHASSIS_POWER_FALLBACK_W;
+        const float referee_limit = referee_data->robot_status.chassis_power_limit;
+        if (Referee_Online() && referee_limit > 0.0f) {
+            limit = fmaxf(0.0f, referee_limit - CHASSIS_POWER_MARGIN_W);
+        }
         chassis_inst.velocity_.setPowerLimit(limit);
 
         chassis_inst.velocity_.setEnable(chassis_cmd.enable);
@@ -75,6 +74,13 @@ void Chassis_Init(void)
             .motor_id_rr = CHASSIS_MOTOR_ID_RR,
             .reduction_ratio = CHASSIS_REDUCTION_RATIO,
             .pid_velocity = CHASSIS_WHEEL_VELOCITY_PID,
+            .power = {
+                .torque_constant = CHASSIS_POWER_TORQUE_CONSTANT,
+                .speed_loss = CHASSIS_POWER_SPEED_LOSS,
+                .torque_loss = CHASSIS_POWER_TORQUE_LOSS,
+                .idle_power_w = CHASSIS_POWER_IDLE_W,
+                .current_limit_a = (float)djim_current_range[DJIMotor_3508],
+            },
         },
         .tim_handle = ROBOT_MOTOR_TIM_HANDLE, // 速度环与功率计算时基；注册顺序由 Robot_Init 决定
     };

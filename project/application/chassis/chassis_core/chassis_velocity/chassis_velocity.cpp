@@ -7,15 +7,13 @@
 
 void ChassisVelocity::init(const Config& config)
 {
-    power_limit_ = 0.0f;   // 默认不限流，应用层覆盖
-    scale_ = 1.0f;
+    power_.init(config.power);
 
     // 注册四轮电机 + 速度环，轮序 [rf, lf, lr, rr]
-    DJIMotor::Config m_cfg = {
-        .can_handle = config.can_handle,
-        .motor_type = DJIMotor_3508,
-        .reduction_ratio = config.reduction_ratio > 0.0f ? config.reduction_ratio : 1.0f,
-    };
+    DJIMotor::Config m_cfg = {};
+    m_cfg.can_handle = config.can_handle;
+    m_cfg.motor_type = DJIMotor_3508;
+    m_cfg.reduction_ratio = config.reduction_ratio > 0.0f ? config.reduction_ratio : 1.0f;
     uint8_t motor_id[CHASSIS_WHEEL_NUM] = {
         config.motor_id_rf, config.motor_id_lf, config.motor_id_lr, config.motor_id_rr
     };
@@ -34,7 +32,11 @@ void ChassisVelocity::setTarget(const float omega_deg[CHASSIS_WHEEL_NUM])
 
 void ChassisVelocity::tick()
 {
-    float scale = scale_;   // 失能时保持上一次缩放比（current_raw 已在 setEnable 清 0）
+    float speed[CHASSIS_WHEEL_NUM], feedback_current[CHASSIS_WHEEL_NUM];
+    for (int i = 0; i < CHASSIS_WHEEL_NUM; ++i) {
+        speed[i] = motor_[i].velocity_;
+        feedback_current[i] = motor_[i].current_;
+    }
 
     // 速度环 → 预测功率 → 缩放 → 限幅发电流 → 反算：仅使能时跑
     if (enable_) {
@@ -45,45 +47,18 @@ void ChassisVelocity::tick()
             current_raw_[i] = pid_velocity_[i].output_;
         }
 
-        // 2. 预测功率：P = Σ Kt·I_raw·ω（负功率/倒灌算 0）
-        float power_pred = 0.0f;
-        for (int i = 0; i < CHASSIS_WHEEL_NUM; i++)
-            power_pred += fmaxf(0.0f, CHASSIS_POWER_COEF * current_raw_[i] * motor_[i].velocity_);
-
-        // 3. 缩放比：limit<=0 放开
-        scale = 1.0f;
-        if (power_limit_ > 0.0f && power_pred > power_limit_)
-            scale = power_limit_ / power_pred;
-        if (scale > 1.0f) scale = 1.0f;
-        if (scale < 0.0f) scale = 0.0f;
-        scale_ = scale;
+        // 2. 功率管理返回单轮限幅、总功率限幅后的最终电流。
+        float limited_current[CHASSIS_WHEEL_NUM];
+        power_.limit(current_raw_, speed, limited_current);
 
         // 4. 写入限流后的电流，并由 PID 内部处理积分反算
         for (int i = 0; i < CHASSIS_WHEEL_NUM; i++) {
-            float limited_current = scale * current_raw_[i];
-            motor_[i].setCurrent(limited_current);
-            pid_velocity_[i].backCalcAntiWindup(limited_current);
+            motor_[i].setCurrent(limited_current[i]);
+            pid_velocity_[i].backCalcAntiWindup(limited_current[i]);
         }
     }
 
-    // 5. 实测总功率（监测）—— 不受使能影响，持续跑
-    power_total_ = CHASSIS_GET_POWER(&motor_[0])
-                 + CHASSIS_GET_POWER(&motor_[1])
-                 + CHASSIS_GET_POWER(&motor_[2])
-                 + CHASSIS_GET_POWER(&motor_[3]);
-
-    //DEBUG
-    static float max_power = 0.0f;
-    static float power_out = 0.0f;
-    static float max_outpower = 0.0f;
-    power_out = fmaxf(0.0f, CHASSIS_POWER_COEF * scale * current_raw_[0] * motor_[0].velocity_)
-              + fmaxf(0.0f, CHASSIS_POWER_COEF * scale * current_raw_[1] * motor_[1].velocity_)
-              + fmaxf(0.0f, CHASSIS_POWER_COEF * scale * current_raw_[2] * motor_[2].velocity_)
-              + fmaxf(0.0f, CHASSIS_POWER_COEF * scale * current_raw_[3] * motor_[3].velocity_);
-    if (power_out > max_outpower)
-        max_outpower = power_out;
-    if (power_total_ > max_power)
-        max_power = power_total_;
+    power_total_ = power_.getPower(feedback_current, speed);
 }
 
 void ChassisVelocity::setEnable(uint8_t enable)
@@ -98,13 +73,12 @@ void ChassisVelocity::setEnable(uint8_t enable)
             pid_velocity_[i].reset();
             current_raw_[i] = 0.0f;
         }
-        scale_ = 1.0f;
     }
 }
 
 void ChassisVelocity::setPowerLimit(float limit)
 {
-    power_limit_ = limit;
+    power_.setPowerLimit(limit);
 }
 
 float ChassisVelocity::getPower()

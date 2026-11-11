@@ -14,7 +14,7 @@ def main():
     parser.add_argument("--source-root", type=pathlib.Path, default=ROOT)
     parser.add_argument("--platform", choices=("f4", "h7"), default="f4")
     parser.add_argument("--cases", nargs="+", choices=[
-        "tim", "daemon", "serial", "serial_1ms", "serial_startup", "vt13", "dt7", "dji", "dm"])
+        "tim", "daemon", "serial", "serial_1ms", "serial_startup", "vt13", "dt7", "dji", "dm", "power"])
     args = parser.parse_args()
     if not args.cxx:
         parser.error("g++ is required; pass --cxx PATH")
@@ -38,6 +38,12 @@ def main():
                "modules/alg/pid/pid", "modules/motor/dji_motor/dji_motor",
                "modules/motor/dm_motor/dm_motor"]
     sources = [source_root / "project" / (name + ".cpp") for name in modules]
+    power = source_root / "project/application/chassis/chassis_core/chassis_power/chassis_power.cpp"
+    if power.exists():
+        sources += [power, source_root / "project/modules/super_cap/super_cap.cpp",
+                    source_root / "project/application/chassis/chassis_core/chassis_velocity/chassis_velocity.cpp"]
+        if args.cases is None:
+            cases += ["power"]
     includes = [stubs] + [source.parent for source in sources]
     exe = build / "regression.exe"
     command = [args.cxx, "-std=c++20", "-O0", "-g", "-Wall", "-Wextra",
@@ -45,6 +51,9 @@ def main():
     if args.platform == "h7":
         command += ["-DTEST_H7"]
     command += ["-I" + str(path) for path in includes]
+    if power.exists():
+        command += ["-DTEST_CHASSIS_POWER", "-I" + str(source_root / "project/modules/alg/rls"),
+                    str(HERE.parent / "chassis_power_test.cpp")]
     command += [str(HERE / "regression.cpp")]
     command += [str(source) for source in sources] + ["-o", str(exe)]
     subprocess.run(command, check=True, cwd=source_root)
