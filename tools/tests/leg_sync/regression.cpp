@@ -293,6 +293,7 @@ static void testDm() {
     cfg.htim = &htim5; cfg.reduction_ratio = 2; cfg.initial_angle = 0.5f;
     cfg.direction = DM_DIRECTION_REVERT;
     motor.init(cfg);
+    CHECK(!motor.angle_valid_);
     CHECK(CAN::sent.back().id == 0x7FF && CAN::sent.back().data[3] == 10 && CAN::sent.back().data[4] == 1);
     ticks(1); CHECK(CAN::sent.back().data[7] == 0xFD); // Disabled heartbeat.
     const auto n = CAN::sent.size(); motor.setEnable(0); CHECK(CAN::sent.size() == n);
@@ -302,6 +303,7 @@ static void testDm() {
     CHECK(near(motor.angle_raw_, 6.25f) && near(motor.angle_, -6.75f));
     CHECK(near(motor.velocity_, -22.5f) && near(motor.current_, -54));
     CHECK(motor.mos_temp_ == 40 && motor.rotor_temp_ == 50);
+    CHECK(motor.angle_valid_);
     fb[0] = 0x25; CAN::inject(&hcan1, 0x15, fb);
     CHECK(motor.faulted() && !motor.shouldAutoClear());
     fb[0] = 0xA5; CAN::inject(&hcan1, 0x15, fb);
@@ -310,6 +312,12 @@ static void testDm() {
     CHECK(static_cast<uint8_t>(motor.state_) == 4 && !motor.faulted());
     fb[0] = 0x16; CAN::inject(&hcan1, 0x15, fb); // Wrong embedded motor ID.
     CHECK(static_cast<uint8_t>(motor.state_) == 4);
+    fb[1] = 0; fb[2] = 0;
+    CAN::inject(&hcan1, 0x15, fb);
+    CHECK(near(motor.angle_raw_, 6.25f)); // Wrong ID must not advance the unwrap history.
+    fb[0] = 0x15; CAN::inject(&hcan1, 0x15, fb);
+    CHECK(near(motor.angle_raw_, -6.25f));
+    CHECK(near(motor.angle_, -6.75f - 12.5f / 65535.0f, 0.00001f));
     motor.setEnable(1); CHECK(CAN::sent.back().data[7] == 0xFC);
     motor.setCurrent(54); ticks(1);
     CHECK(CAN::sent.back().id == 5 && (CAN::sent.back().data[6] & 15) == 0 && CAN::sent.back().data[7] == 0);
@@ -323,7 +331,11 @@ static void testDm() {
     const auto waiting = CAN::sent.size(); ticks(1); CHECK(CAN::sent.size() == waiting);
     CAN::results = {0}; ticks(1); CHECK(motor.modeSwitchStatus() == DMMotor::ModeSwitchStatus::Enabling);
     ticks(1); CHECK(!motor.modeSwitching() && motor.mode() == DMMotor::Mode::Position && motor.motor_enable_);
-    CHECK(near(motor.target_angle_, motor.angle_) && motor.target_velocity_ == 0 && motor.target_current_ == 0);
+    CHECK(near(motor.target_angle_, -motor.angle_raw_ - 0.5f));
+    CHECK(motor.target_velocity_ == 0 && motor.target_current_ == 0);
+    ticks(1);
+    float hold; std::memcpy(&hold, CAN::sent.back().data.data(), 4);
+    CHECK(near(hold, -12.5f)); // Mode switch holds protocol position after a wrap.
     motor.setAngle(1, -3); ticks(1);
     float p, v; std::memcpy(&p, CAN::sent.back().data.data(), 4);
     std::memcpy(&v, CAN::sent.back().data.data() + 4, 4);
@@ -337,16 +349,56 @@ static void testDm() {
     for (const auto& tx : CAN::sent) CHECK(near(tx.timeout_ms, 0.01f, 0.000001f));
     fb[0] = 0x15; CAN::inject(&hcan1, 0x15, fb);
     ticks(50); CHECK(motor.motor_valid_);
-    ticks(1); CHECK(!motor.motor_valid_);
+    ticks(1); CHECK(!motor.motor_valid_ && !motor.angle_valid_);
     CAN::inject(&hcan1, 0x15, fb); CHECK(motor.motor_valid_);
     motor.clearError(); CHECK(CAN::sent.back().data[7] == 0xFB);
     motor.setZero(); CHECK(CAN::sent.back().data[7] == 0xFE);
     DMMotor custom;
     cfg.control_id = 6; cfg.feedback_id = 0x16;
     cfg.direction = DM_DIRECTION_NORMAL; cfg.t_min = -18; cfg.t_max = 18;
+    cfg.p_min = -4; cfg.p_max = 6;
     custom.init(cfg);
     fb[0] = 0x16; CAN::inject(&hcan1, 0x16, fb);
     CHECK(near(custom.current_, 18)); // Per-motor TMAX overrides remain supported.
+    CHECK(near(custom.angle_raw_, -2) && near(custom.angle_, -2.5f));
+
+    DMMotor tracker;
+    cfg = {};
+    cfg.can_handle = &hcan1; cfg.control_id = 7; cfg.feedback_id = 0x17; cfg.htim = &htim5;
+    tracker.init(cfg);
+    auto position = [&](uint16_t code, uint8_t id = 7) {
+        std::array<uint8_t, 8> frame{static_cast<uint8_t>(0x10 | id),
+            static_cast<uint8_t>(code >> 8), static_cast<uint8_t>(code), 0x80, 0, 0, 20, 30};
+        CAN::inject(&hcan1, 0x17, frame);
+    };
+    position(0, 6); CHECK(!tracker.angle_valid_); // Wrong ID cannot seed the first frame.
+    position(65535); CHECK(tracker.angle_valid_ && near(tracker.angle_, 12.5f));
+    position(0); CHECK(near(tracker.angle_, 12.5f + 25.0f / 65535.0f, 0.00001f));
+    CHECK(near(tracker.angle_raw_, -12.5f));
+    position(65535); CHECK(near(tracker.angle_, 12.5f)); // Reverse through the same boundary.
+    tracker.resetAngleTracking(); CHECK(!tracker.angle_valid_);
+    position(0); CHECK(tracker.angle_valid_ && near(tracker.angle_, -12.5f));
+    // Ten revolutions in protocol-code space, in steps shorter than half a range.
+    for (int i = 1; i <= 40; ++i) position(static_cast<uint16_t>(i * 16384));
+    // Float accumulation over these 40 samples must remain within one protocol code.
+    const float position_quantum = 25.0f / 65535.0f;
+    CHECK(near(tracker.angle_, -12.5f + 10 * 65536 * position_quantum, position_quantum));
+    for (int i = 39; i >= 0; --i) position(static_cast<uint16_t>(i * 16384));
+    CHECK(near(tracker.angle_, -12.5f, position_quantum));
+    position(32768); CHECK(!tracker.angle_valid_); // Half a range has no unique direction.
+    const float frozen = tracker.angle_;
+    position(40000); CHECK(!tracker.angle_valid_ && near(tracker.angle_, frozen));
+    tracker.resetAngleTracking(); position(65535);
+    ticks(51); CHECK(!tracker.motor_valid_ && !tracker.angle_valid_);
+    position(0); CHECK(tracker.motor_valid_ && !tracker.angle_valid_);
+    CHECK(near(tracker.angle_, 12.5f) && near(tracker.angle_raw_, -12.5f));
+    tracker.resetAngleTracking(); position(0);
+    CHECK(tracker.angle_valid_ && near(tracker.angle_, -12.5f));
+    CAN::results = {0}; tracker.setZero(); CHECK(tracker.angle_valid_); // Failed TX preserves tracking.
+    tracker.setZero(); CHECK(!tracker.angle_valid_);
+    position(32768); CHECK(!tracker.angle_valid_ && near(tracker.angle_, -12.5f));
+    tracker.resetAngleTracking(); position(32768);
+    CHECK(tracker.angle_valid_ && near(tracker.angle_, 12.5f / 65535.0f));
 }
 
 int main(int argc, char** argv) {

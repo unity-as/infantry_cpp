@@ -38,13 +38,75 @@ void writeFloatLE(uint8_t* dst, float v)
 void DMMotor::decodeCallback(void* device)
 {
     DMMotor* instance = static_cast<DMMotor*>(device);
-    instance->decode(instance->dm_can_.rx_buff_);
+
+    // 解码 CAN 数据，大端模式；不匹配的电机 ID 不更新历史、不喂狗。
+    const uint8_t* rx = instance->dm_can_.rx_buff_;
+    const uint8_t id = static_cast<uint8_t>(rx[0] & 0x0Fu);
+    if (id != static_cast<uint8_t>(instance->control_id_ & 0x0Fu))
+        return;
+
+    instance->feedback_raw_.id = id;
+    instance->feedback_raw_.state = static_cast<uint8_t>(rx[0] >> 4);
+    instance->feedback_raw_.pos = static_cast<uint16_t>((rx[1] << 8) | rx[2]);
+    instance->feedback_raw_.vel = static_cast<uint16_t>((rx[3] << 4) | (rx[4] >> 4));
+    instance->feedback_raw_.torque = static_cast<uint16_t>(((rx[4] & 0x0Fu) << 8) | rx[5]);
+    instance->feedback_raw_.mos_temp = rx[6];
+    instance->feedback_raw_.rotor_temp = rx[7];
+
+    // 速度、力矩 → 用户坐标系；协议角单独保留，不参与累计。
+    float velocity_user = uintToFloat(instance->feedback_raw_.vel, instance->v_min_, instance->v_max_, 12)
+                          / instance->reduction_ratio_;
+    float current_user = uintToFloat(instance->feedback_raw_.torque, instance->t_min_, instance->t_max_, 12);
+    instance->angle_raw_ = uintToFloat(instance->feedback_raw_.pos, instance->p_min_, instance->p_max_, 16)
+                           / instance->reduction_ratio_;
+    if (instance->direction_ == DM_DIRECTION_REVERT) {
+        velocity_user = -velocity_user;
+        current_user = -current_user;
+    }
+
+    // 累计角度 → 用户坐标系；与 DJI 一样修正相邻编码器差值后累计。
+    if (!instance->angle_initialized_) {
+        const float angle_user = instance->direction_ == DM_DIRECTION_REVERT
+                                     ? -instance->angle_raw_ : instance->angle_raw_;
+        instance->angle_ = angle_user + instance->angle_offset_;
+        instance->angle_initialized_ = 1;
+        instance->angle_valid_ = 1;
+    } else if (instance->angle_valid_) {
+        // 达妙是 16 位位置码，必须先提升到 int32_t，不能用 DJI 的 int16_t 差值。
+        int32_t error = static_cast<int32_t>(instance->feedback_raw_.pos) - instance->ecd_last_;
+        if (error == 32768 || error == -32768) {
+            instance->angle_valid_ = 0;  // 恰好半量程时方向不唯一，等待上层重建。
+        } else {
+            if (error > 32768)
+                error -= 65536;
+            else if (error < -32768)
+                error += 65536;
+
+            float angle_delta = static_cast<float>(error) * (instance->p_max_ - instance->p_min_) / 65535.0f
+                                / instance->reduction_ratio_;
+            if (instance->direction_ == DM_DIRECTION_REVERT)
+                angle_delta = -angle_delta;
+            instance->angle_ += angle_delta;
+        }
+    }
+
+    instance->velocity_ = velocity_user;
+    instance->current_ = current_user;
+    instance->state_ = static_cast<State>(instance->feedback_raw_.state);
+    instance->mos_temp_ = instance->feedback_raw_.mos_temp;
+    instance->rotor_temp_ = instance->feedback_raw_.rotor_temp;
+
+    // 记录本次位置，重置失联守护并标记通信有效；不自动恢复已丢失的圈数。
+    instance->ecd_last_ = instance->feedback_raw_.pos;
+    instance->daemon_lose_.reset();
+    instance->motor_valid_ = 1;
 }
 
 void DMMotor::loseCallback(void* device)
 {
     DMMotor* instance = static_cast<DMMotor*>(device);
     instance->motor_valid_ = 0;
+    instance->angle_valid_ = 0;
 }
 
 void DMMotor::timCallback(void* device)
@@ -83,6 +145,7 @@ void DMMotor::init(const Config& config)
     direction_ = config.direction;
     reduction_ratio_ = config.reduction_ratio > 0.0f ? config.reduction_ratio : 1.0f;
     angle_offset_ = -config.initial_angle;
+    resetAngleTracking();
 
     p_min_ = DM_P_MIN;
     p_max_ = DM_P_MAX;
@@ -170,46 +233,6 @@ void DMMotor::packMit(uint8_t out[8], float p, float v, float kp, float kd, floa
     out[5] = static_cast<uint8_t>(kd_u >> 4);
     out[6] = static_cast<uint8_t>(((kd_u & 0x0Fu) << 4) | (t_u >> 8));
     out[7] = static_cast<uint8_t>(t_u);
-}
-
-void DMMotor::decode(const uint8_t rx[8])
-{
-    const uint8_t id = static_cast<uint8_t>(rx[0] & 0x0Fu);
-    const uint8_t state = static_cast<uint8_t>(rx[0] >> 4);
-    if (id != static_cast<uint8_t>(control_id_ & 0x0Fu))
-        return;
-
-    feedback_raw_.id = id;
-    feedback_raw_.state = state;
-    feedback_raw_.pos = static_cast<uint16_t>((rx[1] << 8) | rx[2]);
-    feedback_raw_.vel = static_cast<uint16_t>((rx[3] << 4) | (rx[4] >> 4));
-    feedback_raw_.torque = static_cast<uint16_t>(((rx[4] & 0x0Fu) << 8) | rx[5]);
-    feedback_raw_.mos_temp = rx[6];
-    feedback_raw_.rotor_temp = rx[7];
-
-    float angle = uintToFloat(feedback_raw_.pos, p_min_, p_max_, 16);
-    float velocity = uintToFloat(feedback_raw_.vel, v_min_, v_max_, 12);
-    float current = uintToFloat(feedback_raw_.torque, t_min_, t_max_, 12);
-
-    if (reduction_ratio_ != 0.0f) {
-        angle /= reduction_ratio_;
-        velocity /= reduction_ratio_;
-    }
-    angle_raw_ = angle;
-    if (direction_ == DM_DIRECTION_REVERT) {
-        angle = -angle;
-        velocity = -velocity;
-        current = -current;
-    }
-
-    angle_ = angle + angle_offset_;
-    velocity_ = velocity;
-    current_ = current;
-    state_ = static_cast<State>(feedback_raw_.state);
-    mos_temp_ = feedback_raw_.mos_temp;
-    rotor_temp_ = feedback_raw_.rotor_temp;
-    motor_valid_ = 1;
-    daemon_lose_.reset();
 }
 
 uint8_t DMMotor::sendCmd(DMMotor_Cmd cmd)
@@ -340,7 +363,8 @@ void DMMotor::updateModeSwitch()
 
 void DMMotor::primeTargetsForModeSwitch()
 {
-    target_angle_ = angle_;
+    // 电调目标仍采用协议位置坐标，不把累计多圈角送入有界位置字段。
+    target_angle_ = (direction_ == DM_DIRECTION_REVERT ? -angle_raw_ : angle_raw_) + angle_offset_;
     target_velocity_ = 0.0f;
     target_current_ = 0.0f;
 }
@@ -437,7 +461,17 @@ void DMMotor::clearError()
 
 void DMMotor::setZero()
 {
-    sendCmd(DM_CMD_SET_ZERO);
+    if (sendCmd(DM_CMD_SET_ZERO)) {
+        angle_valid_ = 0;
+        angle_initialized_ = 1;
+    }
+}
+
+void DMMotor::resetAngleTracking()
+{
+    angle_valid_ = 0;
+    angle_initialized_ = 0;
+    ecd_last_ = 0;
 }
 
 DMMotor::Mode DMMotor::mode() const

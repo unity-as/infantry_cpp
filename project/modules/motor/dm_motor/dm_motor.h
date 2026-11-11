@@ -69,7 +69,7 @@ public:
         uint32_t feedback_id;             ///< 反馈帧 ID（助手 MasterID）
         Mode mode = Mode::Current;        ///< 初始模式；init 写电调 CTRL_MODE
         uint8_t direction = DM_DIRECTION_NORMAL;  ///< DM_DIRECTION_NORMAL / REVERT
-        float reduction_ratio = 1.0f;     ///< 减速比，电机轴 / 输出轴，默认 1.0
+        float reduction_ratio = 1.0f;     ///< 额外传动比，电调输出轴 / 用户轴；不重复填写电机内置减速比
         float initial_angle = 0.0f;       ///< 初始角度 [rad]；内部 angle_offset_ = -initial_angle
         TIM_HandleTypeDef* htim;          ///< 本实例心跳定时器（建议 1ms）
         uint32_t daemon_cycle = 100;      ///< 失联超时 [ms]，Daemon 按定时器周期换成拍数
@@ -80,7 +80,7 @@ public:
 
     // —— 实例变量 ——
     // 用户坐标 / 解码反馈
-    float angle_ = 0.0f;            ///< [rad] Reverse + offset 后（给 LQR）
+    float angle_ = 0.0f;            ///< [rad] 连续多圈用户角，方向与零偏变换后；须检查 angle_valid_
     float angle_raw_ = 0.0f;        ///< [rad] 电调协议角：减速后、Reverse/offset 前
     float velocity_ = 0.0f;         ///< [rad/s]
     float current_ = 0.0f;          ///< 扭矩 [N.m]（命名对齐 DJI current_）
@@ -96,6 +96,7 @@ public:
     // 运行状态
     uint8_t motor_enable_ = 0;
     uint8_t motor_valid_ = 0;
+    uint8_t angle_valid_ = 0;        ///< 多圈连续性有效；失联/置零后须显式重建，不能由通信恢复代替
 
 private:
     // 子系统
@@ -118,6 +119,8 @@ private:
 
     // 控制内部
     Mode mode_ = Mode::Current;
+    uint16_t ecd_last_ = 0;
+    uint8_t angle_initialized_ = 0;
     Mode pending_mode_ = Mode::Current;
     Mode desired_mode_ = Mode::Current;
     ModeSwitchStatus mode_switch_status_ = ModeSwitchStatus::Ready;
@@ -159,6 +162,9 @@ public:
     void clearError();
 #endif
     void setZero();
+    /// 丢弃历史圈数，下一个匹配 ID 的反馈以协议角重建用户角；不发送电调置零命令。
+    /// 置零后须等电调完成、旧反馈排空，再调用；不能恢复失联或掉电期间的圈数。
+    void resetAngleTracking();
     uint8_t running() const { return state_ == State::Running ? 1u : 0u; }
     uint8_t faulted() const
     {
@@ -181,7 +187,7 @@ public:
     void setKp(float kp);
     void setKd(float kd);
 
-    void setAngle(float angle);                 ///< 不限速（v_des = DM_VEL_UNLIMITED）；需 Mode::Position
+    void setAngle(float angle);                 ///< 电调位置坐标经方向/零偏变换后的目标；非无限多圈目标
     void setAngle(float angle, float velocity); ///< |velocity|：梯形匀速段上限 [rad/s]
     void setVelocity(float velocity);           ///< 需 Mode::Velocity
     void setCurrent(float current);             ///< 力矩 [N.m]（MIT 纯 t_ff）；需 Mode::Current
@@ -197,5 +203,4 @@ private:
     void enterReady();
     void primeTargetsForModeSwitch();
     void packMit(uint8_t out[8], float p, float v, float kp, float kd, float t_ff) const;
-    void decode(const uint8_t rx[8]);
 };
