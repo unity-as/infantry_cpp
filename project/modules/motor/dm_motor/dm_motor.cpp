@@ -72,16 +72,11 @@ void DMMotor::decodeCallback(void* device)
         instance->angle_initialized_ = 1;
         instance->angle_valid_ = 1;
     } else if (instance->angle_valid_) {
-        // 达妙是 16 位位置码，必须先提升到 int32_t，不能用 DJI 的 int16_t 差值。
-        int32_t error = static_cast<int32_t>(instance->feedback_raw_.pos) - instance->ecd_last_;
-        if (error == 32768 || error == -32768) {
+        // C++20 窄化转换按模 65536 得到最短差值，不依赖有符号算术溢出。
+        const int16_t error = static_cast<int16_t>(instance->feedback_raw_.pos - instance->ecd_last_);
+        if (error == -32768) {
             instance->angle_valid_ = 0;  // 恰好半量程时方向不唯一，等待上层重建。
         } else {
-            if (error > 32768)
-                error -= 65536;
-            else if (error < -32768)
-                error += 65536;
-
             float angle_delta = static_cast<float>(error) * (instance->p_max_ - instance->p_min_) / 65535.0f
                                 / instance->reduction_ratio_;
             if (instance->direction_ == DM_DIRECTION_REVERT)
