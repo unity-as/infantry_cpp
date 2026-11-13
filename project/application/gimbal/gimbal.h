@@ -23,7 +23,8 @@ void  Gimbal_Set_Increment(float yaw_delta, float pitch_delta);
 void  Gimbal_Set_Increment_Setpoint(float yaw, float pitch);
 void  Gimbal_Set_Mode(uint8_t yaw_mode, uint8_t pitch_mode);
 void  Gimbal_Set_Velocity(float yaw_vel, float pitch_vel);
-void  Gimbal_AutoAim(float yaw_err, float pitch_err);
+// 前馈单位 deg/s，与云台速度环同向；默认零以兼容现有调用。
+void  Gimbal_AutoAim(float yaw_err, float pitch_err, float yaw_ff = 0.0f, float pitch_ff = 0.0f);
 void  Gimbal_AutoAim_Reset(void);
 void  Gimbal_SyncTarget(void);
 float Gimbal_GetYaw(void);

@@ -8,17 +8,20 @@
 #include <stdint.h>
 #include "bsp_usart.h"
 
-#define MINIPC_RX_FRAME_LEN  15    // minipc → STM32
+#define MINIPC_RX_FRAME_LEN  21    // minipc → STM32
 #define MINIPC_TX_FRAME_LEN  20    // STM32 → minipc
 
 #pragma pack(1)
 
-// 接收帧 (minipc → STM32): header(1) + yaw/pitch(8) + can_fire(4) + crc(2) = 15
+// 接收帧: header(1) + yaw/pitch(8) + 两轴速度前馈(8) + aim/fire(2) + crc(2) = 21
 typedef struct {
     uint8_t  header;          // 0x5A
-    float    yaw;
-    float    pitch;
-    int32_t  can_fire;
+    float    yaw;            // 角度偏差 [deg]，右正
+    float    pitch;          // 角度偏差 [deg]，下正
+    float    yaw_velocity;   // 目标角速度前馈 [rad/s]，世界 +Z 左转正
+    float    pitch_velocity; // 目标角速度前馈 [rad/s]，抬头正
+    uint8_t  aim_valid;      // aim: 0 无效 / 1 有效
+    uint8_t  can_fire;       // fire: 0 禁止 / 1 许可
     uint16_t crc16;
 } minipc_rx_frame_t;
 

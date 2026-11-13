@@ -72,6 +72,7 @@
 #define GIMBAL_POS_FREQ_DIV_PITCH 5
 // 自瞄按 Gimbal_AutoAim 调用次数分频
 #define GIMBAL_AIM_FREQ_DIV       10
+#define GIMBAL_AIM_FF_GAIN        0.8f  // 自瞄速度前馈系数，两轴共用
 
 #ifdef __cplusplus
 #include "pid.h"

@@ -115,17 +115,19 @@ void Gimbal_AutoAim_Reset(void)
 {
     aim_pid_yaw.reset();
     aim_pid_pitch.reset();
+    gc.setVelocityFF(0.0f, 0.0f);
 }
 
 void Gimbal_SyncTarget(void)
 {
+    gc.setVelocityFF(0.0f, 0.0f);
     gc.setTarget(gc.ahrs_->output_.yaw_total, gc.ahrs_->output_.euler[1]);
     // 清速度目标，防止速度环用自瞄旧值跑
     gc.yaw_.vel_target   = 0.0f;
     gc.pitch_.vel_target = 0.0f;
 }
 
-void Gimbal_AutoAim(float yaw_err, float pitch_err)
+void Gimbal_AutoAim(float yaw_err, float pitch_err, float yaw_ff, float pitch_ff)
 {
     static uint8_t div = 0;
     if (++div < GIMBAL_AIM_FREQ_DIV) return;
@@ -140,4 +142,5 @@ void Gimbal_AutoAim(float yaw_err, float pitch_err)
 
     // 速度指令 → gimbal_core 速度环（定时器驱动）
     gc.setVelocity(aim_pid_yaw.output_, aim_pid_pitch.output_);
+    gc.setVelocityFF(GIMBAL_AIM_FF_GAIN * yaw_ff, GIMBAL_AIM_FF_GAIN * pitch_ff);
 }

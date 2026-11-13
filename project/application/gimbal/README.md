@@ -38,6 +38,6 @@ AHRS 限位约束姿态目标，电机角限位约束相对编码器零位的机
 
 ## 前馈与调参
 
-core 支持 `vel_target + vel_ff` 进入速度环，及速度 PID 的电流前馈；当前应用初始化设置电流前馈，没有调用速度前馈接口。后续设计统一见 [前馈方案](../../../.claude/plans/feedforward.md)。
+core 支持 `vel_target + vel_ff` 进入速度环，及速度 PID 的电流前馈。`Gimbal_AutoAim` 可接收两轴速度前馈（deg/s，与速度环同向：yaw 左转正、pitch 低头正），乘配置中的共用系数后经 `setVelocityFF` 叠加；随原自瞄分频更新，重置自瞄或同步姿态目标时清零。参数默认零，现有 cmd 仍只传角度误差，尚未接入协议中的 rad/s 前馈；单位和坐标转换留待调用方接线。应用初始化的电流前馈保持原配置。
 
 零位、限位、前馈和六组 PID 的数值只在 config.h 维护，单位和历史时基换算见 [PID](../../modules/alg/pid/README.md#参数与时间口径)。旧 pitch 调参经验见 [历史验证记录](../../../.claude/records/validation.md#旧版-pitch-调参)，不得把旧毫秒制增益直接填入当前配置。
