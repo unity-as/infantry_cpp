@@ -17,7 +17,7 @@ class ChassisVelocity {
 public:
     /// 初始化配置
     struct Config {
-        CAN_HandleTypeDef* can_handle;  // 底盘电机CAN句柄
+        CAN::Handle* can_handle;  // 底盘电机CAN句柄
         uint8_t motor_id_rf;            // 右前轮电机ID
         uint8_t motor_id_lf;            // 左前轮电机ID
         uint8_t motor_id_lr;            // 左后轮电机ID

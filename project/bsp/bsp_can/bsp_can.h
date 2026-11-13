@@ -18,16 +18,17 @@
 
 class CAN {
 public:
+    using Handle = CAN_HandleTypeDef;
     using Callback = void (*)(void*);
 
     /// 初始化配置
     struct Config {
-        CAN_HandleTypeDef* can_handle;  ///< CAN 句柄
+        Handle* can_handle;             ///< 平台 CAN 句柄
         uint32_t rx_id;                 ///< 接收 ID（0 表示 TX 组，不加滤波）
     };
 
     // —— 实例变量 ——
-    CAN_HandleTypeDef* can_handle_ = nullptr;  ///< CAN 句柄
+    Handle* can_handle_ = nullptr;             ///< 平台 CAN 句柄
     CAN_TxHeaderTypeDef tx_conf_{};            ///< 发送配置
     uint8_t tx_buff_[8]{};                     ///< 发送缓存
     uint8_t rx_buff_[8]{};                     ///< 接收缓存
@@ -44,7 +45,7 @@ private:
 
     // —— static 函数 ——
 public:
-    static void fifoCallback(CAN_HandleTypeDef* hcan, uint32_t fifox);  ///< FIFO 中断分发
+    static void fifoCallback(Handle* hcan, uint32_t fifox);  ///< FIFO 中断分发
 
     // —— 实例函数 ——
     void init(const Config& config);    ///< 替代 CANRegister（禁堆）
