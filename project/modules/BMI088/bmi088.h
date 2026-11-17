@@ -4,6 +4,7 @@
  * @note    从 C 版 bmi088 迁移：struct BMI088_Instance → class BMI088，Register → init、
  *          BMI088_Read_X/Set_X → readX/setX，逻辑不变，禁堆。
  *          加速度计/陀螺仪分两个 SPI 从机（各占一个软件片选）。
+ *          启动校准流程见 ../ahrs/README.md，通过 setGyroOffset() 写入零偏。
  *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
  *          （各组内 public → private）
  */
@@ -185,7 +186,6 @@ public:
     void readGyro();                       ///< 替代 BMI088_Read_Gyro
     void readTemp();                       ///< 替代 BMI088_Read_Temp
     void readAll();                        ///< 替代 BMI088_Read_All
-    void calibrate();                      ///< 替代 BMI088_Calibrate
 
 private:
     void accReadReg(uint8_t reg, uint8_t* buf, uint8_t len);
