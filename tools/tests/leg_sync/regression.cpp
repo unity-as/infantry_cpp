@@ -293,7 +293,7 @@ static void testDm() {
     cfg.htim = &htim5; cfg.reduction_ratio = 2; cfg.initial_angle = 0.5f;
     cfg.direction = DM_DIRECTION_REVERT;
     motor.init(cfg);
-    CHECK(!motor.angle_valid_);
+    CHECK(!motor.motor_valid_);
     CHECK(CAN::sent.back().id == 0x7FF && CAN::sent.back().data[3] == 10 && CAN::sent.back().data[4] == 1);
     ticks(1); CHECK(CAN::sent.back().data[7] == 0xFD); // Disabled heartbeat.
     const auto n = CAN::sent.size(); motor.setEnable(0); CHECK(CAN::sent.size() == n);
@@ -303,7 +303,7 @@ static void testDm() {
     CHECK(near(motor.angle_raw_, 6.25f) && near(motor.angle_, -6.75f));
     CHECK(near(motor.velocity_, -22.5f) && near(motor.current_, -54));
     CHECK(motor.mos_temp_ == 40 && motor.rotor_temp_ == 50);
-    CHECK(motor.angle_valid_);
+    CHECK(motor.motor_valid_);
     fb[0] = 0x25; CAN::inject(&hcan1, 0x15, fb);
     CHECK(motor.faulted() && !motor.shouldAutoClear());
     fb[0] = 0xA5; CAN::inject(&hcan1, 0x15, fb);
@@ -321,35 +321,57 @@ static void testDm() {
     motor.setEnable(1); CHECK(CAN::sent.back().data[7] == 0xFC);
     motor.setCurrent(54); ticks(1);
     CHECK(CAN::sent.back().id == 5 && (CAN::sent.back().data[6] & 15) == 0 && CAN::sent.back().data[7] == 0);
-    motor.requestMode(DMMotor::Mode::Position);
+    const auto same_esc = CAN::sent.size();
+    motor.setMit(0.2f, 0.4f, -2, 10, 0.5f);
+    CHECK(motor.mode() == DMMotor::Mode::Mit && !motor.modeSwitching() && motor.motor_enable_);
+    CHECK(CAN::sent.size() == same_esc);
+    ticks(1); CHECK(CAN::sent.back().id == 5);
+    motor.setCurrent(54);
+    CHECK(motor.mode() == DMMotor::Mode::Current && !motor.modeSwitching());
+    CHECK(CAN::sent.size() == same_esc + 1);
+    motor.setAngle(1, -3);
     CAN::results = {0}; ticks(1);
-    CHECK(motor.modeSwitchStatus() == DMMotor::ModeSwitchStatus::Disabling);
-    ticks(1); CHECK(motor.modeSwitchStatus() == DMMotor::ModeSwitchStatus::Writing);
-    CAN::results = {0}; ticks(1); CHECK(motor.modeSwitchStatus() == DMMotor::ModeSwitchStatus::Writing);
-    ticks(1); CHECK(motor.modeSwitchStatus() == DMMotor::ModeSwitchStatus::Waiting);
+    CHECK(motor.modeSwitching() && motor.motor_enable_ && !CAN::sent.back().ok);
+    CHECK(CAN::sent.back().data[7] == 0xFD);
+    ticks(1); CHECK(motor.modeSwitching() && !motor.motor_enable_);
+    CHECK(CAN::sent.back().data[7] == 0xFD && CAN::sent.back().ok);
+    CAN::results = {0}; ticks(1);
+    CHECK(motor.modeSwitching() && CAN::sent.back().id == 0x7FF && !CAN::sent.back().ok);
+    ticks(1); CHECK(motor.modeSwitching() && CAN::sent.back().ok);
     CHECK(CAN::sent.back().id == 0x7FF && CAN::sent.back().data[4] == 2);
     const auto waiting = CAN::sent.size(); ticks(1); CHECK(CAN::sent.size() == waiting);
-    CAN::results = {0}; ticks(1); CHECK(motor.modeSwitchStatus() == DMMotor::ModeSwitchStatus::Enabling);
+    CAN::results = {0}; ticks(1);
+    CHECK(motor.modeSwitching() && !motor.motor_enable_ && !CAN::sent.back().ok);
+    CHECK(CAN::sent.back().data[7] == 0xFC);
     ticks(1); CHECK(!motor.modeSwitching() && motor.mode() == DMMotor::Mode::Position && motor.motor_enable_);
-    CHECK(near(motor.target_angle_, -motor.angle_raw_ - 0.5f));
-    CHECK(motor.target_velocity_ == 0 && motor.target_current_ == 0);
+    CHECK(near(motor.target_angle_, 1) && near(motor.target_velocity_, -3));
     ticks(1);
-    float hold; std::memcpy(&hold, CAN::sent.back().data.data(), 4);
-    CHECK(near(hold, -12.5f)); // Mode switch holds protocol position after a wrap.
-    motor.setAngle(1, -3); ticks(1);
     float p, v; std::memcpy(&p, CAN::sent.back().data.data(), 4);
     std::memcpy(&v, CAN::sent.back().data.data() + 4, 4);
     CHECK(CAN::sent.back().id == 0x105 && near(p, -3) && near(v, 6));
-    motor.requestMode(DMMotor::Mode::Velocity); ticks(2);
-    motor.requestMode(DMMotor::Mode::Mit);  // Queued after the current register write.
+    const auto same_mode = CAN::sent.size();
+    motor.setAngle(1, -3);
+    CHECK(!motor.modeSwitching() && CAN::sent.size() == same_mode);
+    ticks(1); CHECK(CAN::sent.size() == same_mode + 1 && CAN::sent.back().id == 0x105);
+    motor.setVelocity(2); ticks(2);
+    motor.setMit(0.25f, 0.5f, 1.5f, 10, 0.3f);  // Queued after the current register write.
     ticks(2); CHECK(motor.mode() == DMMotor::Mode::Velocity && motor.modeSwitching());
     motor.setEnable(0); ticks(4);
     CHECK(motor.mode() == DMMotor::Mode::Mit && !motor.modeSwitching() && !motor.motor_enable_);
+    CHECK(near(motor.target_angle_, 0.25f) && near(motor.target_current_, 1.5f));
     ticks(1); CHECK(CAN::sent.back().data[7] == 0xFD);
+    motor.setVelocity(1); ticks(3);
+    CHECK(motor.mode() == DMMotor::Mode::Velocity && !motor.modeSwitching());
+    const auto entering_mit = CAN::sent.size();
+    motor.setCurrent(3); ticks(1);
+    CHECK(CAN::sent.back().id == 0x7FF && CAN::sent.back().data[4] == 1);
+    motor.setMit(0.1f, 0.2f, 0.3f); ticks(2);
+    CHECK(motor.mode() == DMMotor::Mode::Mit && !motor.modeSwitching() && !motor.motor_enable_);
+    CHECK(CAN::sent.size() == entering_mit + 1); // No second register write or enable.
     for (const auto& tx : CAN::sent) CHECK(near(tx.timeout_ms, 0.01f, 0.000001f));
     fb[0] = 0x15; CAN::inject(&hcan1, 0x15, fb);
     ticks(50); CHECK(motor.motor_valid_);
-    ticks(1); CHECK(!motor.motor_valid_ && !motor.angle_valid_);
+    ticks(1); CHECK(!motor.motor_valid_);
     CAN::inject(&hcan1, 0x15, fb); CHECK(motor.motor_valid_);
     motor.clearError(); CHECK(CAN::sent.back().data[7] == 0xFB);
     motor.setZero(); CHECK(CAN::sent.back().data[7] == 0xFE);
@@ -371,34 +393,36 @@ static void testDm() {
             static_cast<uint8_t>(code >> 8), static_cast<uint8_t>(code), 0x80, 0, 0, 20, 30};
         CAN::inject(&hcan1, 0x17, frame);
     };
-    position(0, 6); CHECK(!tracker.angle_valid_); // Wrong ID cannot seed the first frame.
-    position(65535); CHECK(tracker.angle_valid_ && near(tracker.angle_, 12.5f));
+    position(0, 6); CHECK(!tracker.motor_valid_ && tracker.angle_ == 0); // Wrong ID cannot seed the first frame.
+    position(65535); CHECK(tracker.motor_valid_ && near(tracker.angle_, 12.5f));
     position(0); CHECK(near(tracker.angle_, 12.5f + 25.0f / 65535.0f, 0.00001f));
     CHECK(near(tracker.angle_raw_, -12.5f));
     position(65535); CHECK(near(tracker.angle_, 12.5f)); // Reverse through the same boundary.
-    tracker.resetAngleTracking(); CHECK(!tracker.angle_valid_);
-    position(0); CHECK(tracker.angle_valid_ && near(tracker.angle_, -12.5f));
+    position(0);
+    const float start_angle = tracker.angle_;
     // Ten revolutions in protocol-code space, in steps shorter than half a range.
     for (int i = 1; i <= 40; ++i) position(static_cast<uint16_t>(i * 16384));
     // Float accumulation over these 40 samples must remain within one protocol code.
     const float position_quantum = 25.0f / 65535.0f;
-    CHECK(near(tracker.angle_, -12.5f + 10 * 65536 * position_quantum, position_quantum));
+    CHECK(near(tracker.angle_, start_angle + 10 * 65536 * position_quantum, position_quantum));
     for (int i = 39; i >= 0; --i) position(static_cast<uint16_t>(i * 16384));
-    CHECK(near(tracker.angle_, -12.5f, position_quantum));
-    position(32768); CHECK(!tracker.angle_valid_); // Half a range has no unique direction.
-    const float frozen = tracker.angle_;
-    position(40000); CHECK(!tracker.angle_valid_ && near(tracker.angle_, frozen));
-    tracker.resetAngleTracking(); position(65535);
-    ticks(51); CHECK(!tracker.motor_valid_ && !tracker.angle_valid_);
-    position(0); CHECK(tracker.motor_valid_ && !tracker.angle_valid_);
-    CHECK(near(tracker.angle_, 12.5f) && near(tracker.angle_raw_, -12.5f));
-    tracker.resetAngleTracking(); position(0);
-    CHECK(tracker.angle_valid_ && near(tracker.angle_, -12.5f));
-    CAN::results = {0}; tracker.setZero(); CHECK(tracker.angle_valid_); // Failed TX preserves tracking.
-    tracker.setZero(); CHECK(!tracker.angle_valid_);
-    position(32768); CHECK(!tracker.angle_valid_ && near(tracker.angle_, -12.5f));
-    tracker.resetAngleTracking(); position(32768);
-    CHECK(tracker.angle_valid_ && near(tracker.angle_, 12.5f / 65535.0f));
+    CHECK(near(tracker.angle_, start_angle, position_quantum));
+    position(32768);
+    CHECK(near(tracker.angle_, start_angle - 32768 * position_quantum, position_quantum));
+    position(40000);
+    CHECK(near(tracker.angle_, start_angle - 25536 * position_quantum, position_quantum));
+    const float before_timeout = tracker.angle_;
+    ticks(51); CHECK(!tracker.motor_valid_ && near(tracker.angle_, before_timeout));
+    position(0, 6); CHECK(!tracker.motor_valid_ && near(tracker.angle_, before_timeout));
+    position(40001);
+    CHECK(tracker.motor_valid_ && near(tracker.angle_, before_timeout + position_quantum, position_quantum));
+    const float before_zero = tracker.angle_;
+    CAN::results = {0}; tracker.setZero();
+    CHECK(!CAN::sent.back().ok && tracker.motor_valid_ && near(tracker.angle_, before_zero));
+    position(40002);
+    tracker.setZero(); CHECK(CAN::sent.back().ok && tracker.motor_valid_);
+    position(40003);
+    CHECK(near(tracker.angle_, before_zero + 2 * position_quantum, position_quantum));
 }
 
 int main(int argc, char** argv) {

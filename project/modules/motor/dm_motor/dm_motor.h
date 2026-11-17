@@ -3,7 +3,7 @@
  * @brief   达妙关节电机（位置 / 速度 / 电流 / MIT；电流 = MIT 纯 t_ff）
  * @note    壳子参考 DJIMotor（公开用户量 + private FeedbackRaw）；单位 rad、rad/s、N.m。
  *          通过 bsp_can 收发经典 CAN，Config.can_handle 为 CAN::Handle*。
- *          控制模式在 Config.mode 指定；运行期 requestMode() 由定时回调异步切换。
+ *          Config.mode 指定初始模式；运行期由目标接口选择模式，定时回调完成异步切换。
  *          setEnable(0) 已失能则不再发管理帧；失能态由所选定时器心跳持续发失能管理帧。
  *          setEnable(1) 发送使能管理帧后改发控制帧。电调因此在失能态仍持续回帧。
  *          成员顺序：嵌套类型 → 实例变量 → static 变量 → static 函数 → 实例函数
@@ -15,7 +15,6 @@
 #include "bsp_can.h"
 #include "bsp_tim.h"
 #include "daemon.h"
-#include "bsp_log_config.h"
 
 class DMMotor {
 public:
@@ -25,14 +24,6 @@ public:
         Velocity,
         Position,
         Mit,
-    };
-
-    enum class ModeSwitchStatus : uint8_t {
-        Ready = 0,
-        Disabling,
-        Writing,
-        Waiting,
-        Enabling,
     };
 
     /// D[0] 高 4 位；识别／读取异常按用户提供的协议图补齐，未定义值原样保留。
@@ -78,9 +69,19 @@ public:
         float t_min = 0, t_max = 0;
     };
 
+private:
+    enum class ModeSwitchStatus : uint8_t {
+        Ready = 0,
+        Disabling,
+        Writing,
+        Waiting,
+        Enabling,
+    };
+
+public:
     // —— 实例变量 ——
     // 用户坐标 / 解码反馈
-    float angle_ = 0.0f;            ///< [rad] 连续多圈用户角，方向与零偏变换后；须检查 angle_valid_
+    float angle_ = 0.0f;            ///< [rad] 连续多圈用户角，方向与零偏变换后
     float angle_raw_ = 0.0f;        ///< [rad] 电调协议角：减速后、Reverse/offset 前
     float velocity_ = 0.0f;         ///< [rad/s]
     float current_ = 0.0f;          ///< 扭矩 [N.m]（命名对齐 DJI current_）
@@ -96,7 +97,6 @@ public:
     // 运行状态
     uint8_t motor_enable_ = 0;
     uint8_t motor_valid_ = 0;
-    uint8_t angle_valid_ = 0;        ///< 多圈连续性有效；失联/置零后须显式重建，不能由通信恢复代替
 
 private:
     // 子系统
@@ -109,7 +109,6 @@ private:
 
     // 身份 / 标定 / 量程
     uint32_t control_id_ = 0;
-    uint32_t feedback_id_ = 0;
     uint8_t direction_ = DM_DIRECTION_NORMAL;
     float reduction_ratio_ = 1.0f;
     float angle_offset_ = 0.0f;  ///< = -initial_angle
@@ -133,9 +132,6 @@ private:
 
     // —— static 函数 ——
 public:
-#if ROBOT_RTT_PRINT && (ROBOT_RTT_REPORT_MOTOR_DETAIL || ROBOT_RTT_REPORT_CLEAR_ERROR)
-    static const char* stateName(State state);
-#endif
     static uint8_t isFaultState(State state)
     {
         return state == State::MotorUnrecognized || state == State::OutputShaftUnrecognized ||
@@ -156,15 +152,8 @@ public:
     void init(const Config& config);
 
     void setEnable(uint8_t motor_enable);  ///< 1：使能；0：失能，心跳持续发失能帧
-#if ROBOT_RTT_PRINT && ROBOT_RTT_REPORT_CLEAR_ERROR
-    void clearError(const char* reason = nullptr, const char* who = nullptr);
-#else
     void clearError();
-#endif
     void setZero();
-    /// 丢弃历史圈数，下一个匹配 ID 的反馈以协议角重建用户角；不发送电调置零命令。
-    /// 置零后须等电调完成、旧反馈排空，再调用；不能恢复失联或掉电期间的圈数。
-    void resetAngleTracking();
     uint8_t running() const { return state_ == State::Running ? 1u : 0u; }
     uint8_t faulted() const
     {
@@ -176,12 +165,8 @@ public:
         return static_cast<uint8_t>(state_) >= 0x8u ? 1u : 0u;
     }
 
-    /// 异步切换控制模式；切换中也记下目标，当前切完接着切，不丢。
-    /// 完成前会重置为当前位置、零速度、零力矩；新目标应在 modeSwitching()==0 后设置。
-    uint8_t requestMode(Mode mode);
     Mode mode() const;
-    /// Ready 表示本地发送时序完成；当前驱动未解析电调的参数写入应答。
-    ModeSwitchStatus modeSwitchStatus() const;
+    /// 只读切换状态；本地发送时序完成不代表已收到电调确认。
     uint8_t modeSwitching() const;
 
     void setKp(float kp);
@@ -189,9 +174,9 @@ public:
 
     void setAngle(float angle);                 ///< 电调位置坐标经方向/零偏变换后的目标；非无限多圈目标
     void setAngle(float angle, float velocity); ///< |velocity|：梯形匀速段上限 [rad/s]
-    void setVelocity(float velocity);           ///< 需 Mode::Velocity
-    void setCurrent(float current);             ///< 力矩 [N.m]（MIT 纯 t_ff）；需 Mode::Current
-    void setMit(float angle, float velocity, float current, float kp, float kd);  ///< 需 Mode::Mit
+    void setVelocity(float velocity);           ///< 自动选择 Mode::Velocity
+    void setCurrent(float current);             ///< 力矩 [N.m]（MIT 纯 t_ff）；自动选择 Mode::Current
+    void setMit(float angle, float velocity, float current, float kp, float kd);  ///< 自动选择 Mode::Mit
     void setMit(float angle, float velocity, float current);  ///< 用已设 kp_ kd_
 
 private:
@@ -199,8 +184,8 @@ private:
     uint8_t writeRegU32(uint8_t rid, uint32_t value);
     void update();  ///< TIM 周期入口（对齐 DJIMotor::update）
     void updateModeSwitch();
+    void requestMode(Mode mode);
     void beginModeSwitch();
     void enterReady();
-    void primeTargetsForModeSwitch();
     void packMit(uint8_t out[8], float p, float v, float kp, float kd, float t_ff) const;
 };
