@@ -38,6 +38,8 @@ float stepController(float target, float feedback) {
 
 ## 参数与时间口径
 
+运行时增益直接读取公开成员 `kp_`、`ki_`、`kd_`；`setParameters()` 用于成组更新三个增益。
+
 - `period` 为 `float` 秒，支持亚毫秒周期和大于 255 ms 的周期；应与实际调用周期一致。
   非正数或 NaN／Inf 按 `0.001f`（1 ms）处理。积分乘以秒数，微分除以秒数，`ki/kd` 按秒整定。
   从旧毫秒配置等价迁移时：`period`、`kd`、`kd_extra`、`integral_limit` 除以 1000，

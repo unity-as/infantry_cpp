@@ -54,10 +54,11 @@ public:
     float integral_ = 0.0f;       ///< 积分项（位置式）
     float last_feedback_ = 0.0f;  ///< 上次反馈值
 
-private:
     float kp_ = 0.0f;
     float ki_ = 0.0f;
     float kd_ = 0.0f;
+
+private:
     float integral_limit_ = 0.0f;
     float derivative_limit_ = 0.0f;
     float output_min_ = 0.0f;
