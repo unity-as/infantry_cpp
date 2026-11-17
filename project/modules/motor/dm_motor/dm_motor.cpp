@@ -3,13 +3,12 @@
  * @brief   达妙关节电机：解码 + 四模式组帧 + 管理命令 + TIM 心跳
  * @note    MIT/反馈手拼跨字节字段；0x100/0x200 为 float 小端。
  *          每实例 Config.htim 驱动 update；Daemon 共用同一时基；经典 CAN。
- *          Config.mode 为初始 CTRL_MODE；运行期 requestMode() 由定时回调异步切换。
+ *          Config.mode 为初始 CTRL_MODE；运行期由目标接口选择模式，定时回调完成切换。
  *          失能态 update 发 DISABLE，不发控制帧。
  */
 #include "dm_motor.h"
 
 #include "bsp_dwt.h"
-#include "bsp_log.h"
 #include <string.h>
 
 DMMotor* DMMotor::instances_[DM_MOTOR_MAX_INSTANCE] = {};
@@ -70,19 +69,14 @@ void DMMotor::decodeCallback(void* device)
                                      ? -instance->angle_raw_ : instance->angle_raw_;
         instance->angle_ = angle_user + instance->angle_offset_;
         instance->angle_initialized_ = 1;
-        instance->angle_valid_ = 1;
-    } else if (instance->angle_valid_) {
+    } else {
         // C++20 窄化转换按模 65536 得到最短差值，不依赖有符号算术溢出。
         const int16_t error = static_cast<int16_t>(instance->feedback_raw_.pos - instance->ecd_last_);
-        if (error == -32768) {
-            instance->angle_valid_ = 0;  // 恰好半量程时方向不唯一，等待上层重建。
-        } else {
-            float angle_delta = static_cast<float>(error) * (instance->p_max_ - instance->p_min_) / 65535.0f
-                                / instance->reduction_ratio_;
-            if (instance->direction_ == DM_DIRECTION_REVERT)
-                angle_delta = -angle_delta;
-            instance->angle_ += angle_delta;
-        }
+        float angle_delta = static_cast<float>(error) * (instance->p_max_ - instance->p_min_) / 65535.0f
+                            / instance->reduction_ratio_;
+        if (instance->direction_ == DM_DIRECTION_REVERT)
+            angle_delta = -angle_delta;
+        instance->angle_ += angle_delta;
     }
 
     instance->velocity_ = velocity_user;
@@ -91,7 +85,7 @@ void DMMotor::decodeCallback(void* device)
     instance->mos_temp_ = instance->feedback_raw_.mos_temp;
     instance->rotor_temp_ = instance->feedback_raw_.rotor_temp;
 
-    // 记录本次位置，重置失联守护并标记通信有效；不自动恢复已丢失的圈数。
+    // 记录本次位置，重置失联守护；与 DJI 一样由匹配反馈恢复通信有效。
     instance->ecd_last_ = instance->feedback_raw_.pos;
     instance->daemon_lose_.reset();
     instance->motor_valid_ = 1;
@@ -101,7 +95,6 @@ void DMMotor::loseCallback(void* device)
 {
     DMMotor* instance = static_cast<DMMotor*>(device);
     instance->motor_valid_ = 0;
-    instance->angle_valid_ = 0;
 }
 
 void DMMotor::timCallback(void* device)
@@ -130,7 +123,6 @@ void DMMotor::init(const Config& config)
         return;
 
     control_id_ = config.control_id;
-    feedback_id_ = config.feedback_id;
     mode_ = config.mode;
     pending_mode_ = mode_;
     desired_mode_ = mode_;
@@ -140,7 +132,8 @@ void DMMotor::init(const Config& config)
     direction_ = config.direction;
     reduction_ratio_ = config.reduction_ratio > 0.0f ? config.reduction_ratio : 1.0f;
     angle_offset_ = -config.initial_angle;
-    resetAngleTracking();
+    angle_initialized_ = 0;
+    ecd_last_ = 0;
 
     p_min_ = DM_P_MIN;
     p_max_ = DM_P_MAX;
@@ -326,7 +319,6 @@ void DMMotor::updateModeSwitch()
             break;
 
         mode_ = pending_mode_;
-        primeTargetsForModeSwitch();
         if (!resume_after_mode_switch_) {
             enterReady();
             break;
@@ -356,20 +348,17 @@ void DMMotor::updateModeSwitch()
     }
 }
 
-void DMMotor::primeTargetsForModeSwitch()
-{
-    // 电调目标仍采用协议位置坐标，不把累计多圈角送入有界位置字段。
-    target_angle_ = (direction_ == DM_DIRECTION_REVERT ? -angle_raw_ : angle_raw_) + angle_offset_;
-    target_velocity_ = 0.0f;
-    target_current_ = 0.0f;
-}
-
 void DMMotor::beginModeSwitch()
 {
     if (mode_switch_status_ != ModeSwitchStatus::Ready)
         return;
     if (desired_mode_ == mode_)
         return;
+    // Current 只是 MIT 的零增益力矩指令，不需要改电调 CTRL_MODE。
+    if (modeToEsc(desired_mode_) == modeToEsc(mode_)) {
+        mode_ = desired_mode_;
+        return;
+    }
     pending_mode_ = desired_mode_;
     resume_after_mode_switch_ = motor_enable_;
     mode_switch_status_ = motor_enable_ ? ModeSwitchStatus::Disabling
@@ -382,16 +371,15 @@ void DMMotor::enterReady()
     beginModeSwitch();
 }
 
-uint8_t DMMotor::requestMode(Mode mode)
+void DMMotor::requestMode(Mode mode)
 {
     desired_mode_ = mode;
     if (mode_switch_status_ == ModeSwitchStatus::Ready) {
         beginModeSwitch();
-        return 1;
+        return;
     }
     if (mode_switch_status_ == ModeSwitchStatus::Disabling)
         pending_mode_ = mode;
-    return 1;
 }
 
 void DMMotor::setEnable(uint8_t motor_enable)
@@ -412,71 +400,19 @@ void DMMotor::setEnable(uint8_t motor_enable)
         sendCmd(DM_CMD_DISABLE);
 }
 
-#if ROBOT_RTT_PRINT && (ROBOT_RTT_REPORT_MOTOR_DETAIL || ROBOT_RTT_REPORT_CLEAR_ERROR)
-const char* DMMotor::stateName(State state)
-{
-    switch (state) {
-    case State::Disabled: return "disabled";
-    case State::Running: return "running";
-    case State::MotorUnrecognized: return "motor-unrecognized";
-    case State::OutputShaftUnrecognized: return "output-shaft-unrecognized";
-    case State::OffsetReadError: return "offset-read-error";
-    case State::EncoderReadError: return "encoder-read-error";
-    case State::OverVoltage: return "over-voltage";
-    case State::UnderVoltage: return "under-voltage";
-    case State::OverCurrent: return "over-current";
-    case State::MosOverTemp: return "mos-over-temp";
-    case State::CoilOverTemp: return "coil-over-temp";
-    case State::LostComm: return "esc-lost-comm";
-    case State::Overload: return "overload";
-    default: return "unknown";
-    }
-}
-#endif
-
-#if ROBOT_RTT_PRINT && ROBOT_RTT_REPORT_CLEAR_ERROR
-void DMMotor::clearError(const char* reason, const char* who)
-{
-    const State before = state_;
-    const uint8_t valid = motor_valid_;
-    const uint8_t queued = sendCmd(DM_CMD_CLEAR_ERROR);
-    if (g_log_reports.clear_error)
-        LOG_INFO(LOG_MOD_MOTOR, who ? who : "DM",
-                 "Clear id=0x%lX fb=0x%lX state=0x%X(%s) valid=%u cause=%s queued=%u",
-                 static_cast<unsigned long>(control_id_), static_cast<unsigned long>(feedback_id_),
-                 static_cast<unsigned>(before), stateName(before), valid,
-                 reason ? reason : "caller", queued);
-}
-#else
 void DMMotor::clearError()
 {
     sendCmd(DM_CMD_CLEAR_ERROR);
 }
-#endif
 
 void DMMotor::setZero()
 {
-    if (sendCmd(DM_CMD_SET_ZERO)) {
-        angle_valid_ = 0;
-        angle_initialized_ = 1;
-    }
-}
-
-void DMMotor::resetAngleTracking()
-{
-    angle_valid_ = 0;
-    angle_initialized_ = 0;
-    ecd_last_ = 0;
+    sendCmd(DM_CMD_SET_ZERO);
 }
 
 DMMotor::Mode DMMotor::mode() const
 {
     return mode_;
-}
-
-DMMotor::ModeSwitchStatus DMMotor::modeSwitchStatus() const
-{
-    return mode_switch_status_;
 }
 
 uint8_t DMMotor::modeSwitching() const
@@ -501,17 +437,20 @@ void DMMotor::setAngle(float angle)
 
 void DMMotor::setAngle(float angle, float velocity)
 {
+    requestMode(Mode::Position);
     target_angle_ = angle;
     target_velocity_ = velocity;
 }
 
 void DMMotor::setVelocity(float velocity)
 {
+    requestMode(Mode::Velocity);
     target_velocity_ = velocity;
 }
 
 void DMMotor::setCurrent(float current)
 {
+    requestMode(Mode::Current);
     target_current_ = current;
 }
 
@@ -524,6 +463,7 @@ void DMMotor::setMit(float angle, float velocity, float current, float kp, float
 
 void DMMotor::setMit(float angle, float velocity, float current)
 {
+    requestMode(Mode::Mit);
     target_angle_ = angle;
     target_velocity_ = velocity;
     target_current_ = current;
